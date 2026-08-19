@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowDown, ArrowRight, ArrowUp, Sparkles, Target, CornerDownLeft } from "lucide-react";
 import { getPathDistanceInfo } from "../logic/solver";
@@ -29,6 +29,16 @@ interface TierWordNode {
   changedIndex: number;
 }
 
+interface SvgEdge {
+  id: string;
+  d: string;
+  isLatest: boolean;
+  fromWord: string;
+  toWord: string;
+  stepIndex: number;
+  delta: number;
+}
+
 export const LadderBoard: React.FC<LadderBoardProps> = ({
   startWord,
   targetWord,
@@ -44,6 +54,10 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 }) => {
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tileRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [svgEdges, setSvgEdges] = useState<SvgEdge[]>([]);
 
   // Compute step distance metrics for every step in path
   const stepsInfo = useMemo(() => {
@@ -150,6 +164,86 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     return tierList;
   }, [currentActiveWord, isWon, maxTier, path.length, stepsInfo]);
 
+  // Calculate SVG curved arrow paths connecting each sequential move in path
+  const updateSvgEdges = useCallback(() => {
+    if (!containerRef.current || path.length <= 1) {
+      setSvgEdges([]);
+      return;
+    }
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const edges: SvgEdge[] = [];
+
+    // Track move pairs to offset return/backtrack arrows
+    const pairCounts: Record<string, number> = {};
+
+    for (let i = 0; i < path.length - 1; i++) {
+      const fromWord = path[i];
+      const toWord = path[i + 1];
+      if (fromWord === toWord) continue;
+
+      const fromEl = tileRefs.current[fromWord];
+      const toEl = tileRefs.current[toWord];
+      if (!fromEl || !toEl) continue;
+
+      const fromRect = fromEl.getBoundingClientRect();
+      const toRect = toEl.getBoundingClientRect();
+
+      const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+      const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+
+      const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+      const y2 = toRect.top + toRect.height / 2 - containerRect.top;
+
+      // Unique pair key to calculate curve offset for back-and-forth arrows
+      const pairKey = [fromWord, toWord].sort().join("<->");
+      pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
+      const occurrence = pairCounts[pairKey];
+
+      // Calculate control point for curved arrow
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2;
+
+      // Perpendicular offset
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const perpX = -dy / len;
+      const perpY = dx / len;
+
+      // Alternate curve side if moving back and forth between same pair
+      const offsetMag = occurrence % 2 === 1 ? 16 + (occurrence - 1) * 6 : -16 - (occurrence - 2) * 6;
+      const ctrlX = midX + perpX * offsetMag;
+      const ctrlY = midY + perpY * offsetMag;
+
+      const isLatest = i === path.length - 2 && !isWon;
+      const toStep = stepsInfo[i + 1];
+      const delta = toStep ? toStep.delta : 0;
+
+      edges.push({
+        id: `edge-${i}-${fromWord}-${toWord}`,
+        d: `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`,
+        isLatest,
+        fromWord,
+        toWord,
+        stepIndex: i + 1,
+        delta,
+      });
+    }
+
+    setSvgEdges(edges);
+  }, [isWon, path, stepsInfo]);
+
+  useEffect(() => {
+    // Small timeout to allow DOM layout to settle after state updates
+    const timer = setTimeout(updateSvgEdges, 60);
+    window.addEventListener("resize", updateSvgEdges);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateSvgEdges);
+    };
+  }, [updateSvgEdges, path, tiers]);
+
   // Auto focus native input when user taps board or mounts
   const handleBoardClick = () => {
     if (!isWon) {
@@ -192,8 +286,101 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
         </div>
       </div>
 
+      {/* Path Breadcrumbs Trail showing sequential arrow moves */}
+      {path.length > 1 && (
+        <div className="w-full mb-2.5 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-thin text-xs font-mono">
+          <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold shrink-0">
+            {lang === "cs" ? "Cesta:" : "Trail:"}
+          </span>
+          {path.map((word, idx) => {
+            const isLast = idx === path.length - 1;
+            return (
+              <React.Fragment key={`trail-${idx}-${word}`}>
+                <span
+                  className={`px-2 py-0.5 rounded font-bold shrink-0 transition-all ${
+                    idx === 0
+                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
+                      : isLast
+                      ? "bg-amber-500/20 text-amber-300 border-2 border-amber-400 shadow animate-pulse"
+                      : "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                  }`}
+                >
+                  {word}
+                </span>
+                {!isLast && <span className="text-amber-400 font-bold shrink-0">➔</span>}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+
       {/* Distance Elevation Graph / Ladder Container */}
-      <div className="w-full max-h-[46vh] sm:max-h-[50vh] overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scrollbar-thumb-zinc-700">
+      <div
+        ref={containerRef}
+        className="relative w-full max-h-[46vh] sm:max-h-[50vh] overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scrollbar-thumb-zinc-700"
+      >
+        {/* SVG Curved Arrows Layer */}
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"
+          aria-hidden="true"
+        >
+          <defs>
+            {/* Active move arrow marker */}
+            <marker
+              id="arrowhead-active"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
+            </marker>
+
+            {/* Past move arrow marker */}
+            <marker
+              id="arrowhead-past"
+              viewBox="0 0 10 10"
+              refX="8"
+              refY="5"
+              markerWidth="5"
+              markerHeight="5"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#10b981" />
+            </marker>
+          </defs>
+
+          {/* Render connecting path arrows */}
+          {svgEdges.map((edge) => (
+            <g key={edge.id}>
+              {/* Outer glow for latest move */}
+              {edge.isLatest && (
+                <path
+                  d={edge.d}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="6"
+                  strokeOpacity="0.25"
+                  strokeLinecap="round"
+                />
+              )}
+              {/* Main arrow line */}
+              <path
+                d={edge.d}
+                fill="none"
+                stroke={edge.isLatest ? "#f59e0b" : "#10b981"}
+                strokeWidth={edge.isLatest ? 2.5 : 1.8}
+                strokeOpacity={edge.isLatest ? 1 : 0.65}
+                strokeDasharray={edge.isLatest ? undefined : "4 3"}
+                markerEnd={edge.isLatest ? "url(#arrowhead-active)" : "url(#arrowhead-past)"}
+              />
+            </g>
+          ))}
+        </svg>
+
+        {/* Elevation Tiers */}
         {tiers.map((tier) => {
           const isCurrentActiveTier = currentDist === tier.dist && !isWon;
           const hasWords = tier.uniqueWords.length > 0;
@@ -260,18 +447,28 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                   return (
                     <motion.div
                       key={`tier-${tier.dist}-${node.word}`}
+                      ref={(el) => {
+                        tileRefs.current[node.word] = el;
+                      }}
                       layout
                       initial={{ opacity: 0, scale: 0.85 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.25 }}
-                      className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
-                        isStartOnly
+                      className={`relative flex flex-col items-center p-2 rounded-xl border transition-all ${
+                        node.isLatest
+                          ? "bg-amber-950/50 border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-4 ring-amber-400/25 z-20"
+                          : isStartOnly
                           ? "bg-emerald-950/40 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                          : node.isLatest
-                          ? "bg-amber-950/40 border-2 border-amber-400 shadow-[0_0_16px_rgba(245,158,11,0.3)] animate-pulse"
                           : "bg-zinc-800/80 border-zinc-700"
                       }`}
                     >
+                      {/* Active Current Pill Tag */}
+                      {node.isLatest && (
+                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-zinc-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase tracking-wider shadow">
+                          {lang === "cs" ? "Aktuální" : "Current"}
+                        </div>
+                      )}
+
                       {/* Step Tag & Direction Badge */}
                       <div className="flex items-center justify-between w-full mb-1 text-[10px] font-mono px-1">
                         <span className="text-zinc-300 font-bold">{stepLabel}</span>
@@ -314,7 +511,9 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                             <div
                               key={`letter-${node.word}-${i}`}
                               className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-base sm:text-lg rounded-lg ${
-                                isStartOnly
+                                node.isLatest
+                                  ? "bg-amber-500/25 text-amber-200 border-2 border-amber-400 font-extrabold"
+                                  : isStartOnly
                                   ? "bg-zinc-900 text-emerald-300 border border-emerald-500/40"
                                   : isChanged
                                   ? "bg-amber-500/20 text-amber-300 border border-amber-400 shadow"
@@ -333,6 +532,9 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                 {/* Target Goal Word in Tier 0 */}
                 {isGoalTier && (
                   <div
+                    ref={(el) => {
+                      tileRefs.current[targetWord] = el;
+                    }}
                     className={`flex flex-col items-center p-2 rounded-xl border ${
                       isWon
                         ? "bg-emerald-500/20 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.3)] animate-bounce"
