@@ -122,6 +122,7 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [mobileVerifierOpen, setMobileVerifierOpen] = useState<boolean>(false);
   const [showVirtualKeyboard, setShowVirtualKeyboard] = useState<boolean>(false);
+  const [winGameData, setWinGameData] = useState<{ puzzle: PuzzleInfo; path: string[]; mode: GameMode } | null>(null);
 
   // Modals
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
@@ -137,7 +138,7 @@ export default function App() {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  // Load / initialize game state on mode or language change
+  // Load / initialize game state ONLY on language change
   useEffect(() => {
     if (mode === "daily") {
       const todayDaily = getDailyPuzzle(lang);
@@ -163,7 +164,7 @@ export default function App() {
       setIsWon(false);
       setErrorMessage(null);
     }
-  }, [lang, mode, stats.dailyCompleted]);
+  }, [lang]);
 
   // Handle sound toggle
   const toggleSound = () => {
@@ -182,6 +183,7 @@ export default function App() {
     setIsWon(false);
     setErrorMessage(null);
     setShowWin(false);
+    setWinGameData(null);
   }, [lang]);
 
   // Switch to Daily mode
@@ -202,6 +204,7 @@ export default function App() {
     setCurrentInput("");
     setErrorMessage(null);
     setShowWin(false);
+    setWinGameData(null);
   }, [lang, stats.dailyCompleted]);
 
   // Switch to Custom Puzzle
@@ -213,6 +216,7 @@ export default function App() {
     setIsWon(false);
     setErrorMessage(null);
     setShowWin(false);
+    setWinGameData(null);
   }, []);
 
   // Trigger error shake & toast
@@ -266,6 +270,7 @@ export default function App() {
         sounds.playWin();
         setIsWon(true);
         launchConfetti(canvasRef.current);
+        setWinGameData({ puzzle, path: newPath, mode });
         const updatedStats = recordGameWin(stats, mode, puzzle, newPath);
         setStats(updatedStats);
         setTimeout(() => setShowWin(true), 600);
@@ -701,9 +706,9 @@ export default function App() {
       <WinModal
         isOpen={showWin}
         onClose={() => setShowWin(false)}
-        puzzle={puzzle}
-        userPath={path}
-        mode={mode}
+        puzzle={winGameData?.puzzle || puzzle}
+        userPath={winGameData?.path || path}
+        mode={winGameData?.mode || mode}
         onNextPuzzle={startUnlimited}
         onSwitchToUnlimited={startUnlimited}
         lang={lang}
