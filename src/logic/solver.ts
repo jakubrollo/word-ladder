@@ -163,3 +163,36 @@ export function validateGuess(
   }
   return { valid: true };
 }
+
+export interface StepDistanceInfo {
+  word: string;
+  distance: number;
+  delta: number; // -1 (closer / down), 0 (same / neutral), +1 (farther / up)
+  stepIndex: number;
+  changedIndex: number;
+}
+
+/**
+ * Computes the distance to target and delta (direction) for each step in a path.
+ */
+export function getPathDistanceInfo(
+  path: string[],
+  targetWord: string,
+  wordSet: ReadonlySet<string> = VALID_WORDS_SET
+): StepDistanceInfo[] {
+  return path.map((word, index) => {
+    const dist = calculatePar(word, targetWord, wordSet);
+    const prevWord = index > 0 ? path[index - 1] : word;
+    const prevDist = index > 0 ? calculatePar(prevWord, targetWord, wordSet) : dist;
+    const changedIndex = index > 0 ? getDiffIndex(prevWord, word) : -1;
+
+    return {
+      word,
+      distance: dist,
+      delta: index === 0 ? 0 : dist - prevDist,
+      stepIndex: index,
+      changedIndex,
+    };
+  });
+}
+

@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
+import { X, Sparkles, AlertCircle, ArrowDown, ArrowRight, ArrowUp, Smartphone } from "lucide-react";
 
 interface HowToPlayModalProps {
   isOpen: boolean;
@@ -32,14 +32,15 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ isOpen, onClose,
         <div className="space-y-4 text-sm text-zinc-300">
           <p>
             {lang === "cs"
-              ? "Cílem hry je proměnit počáteční 4-písmenné slovo v cílové slovo (např. BOAT ➔ COOP nebo COLD ➔ WARM) v co nejmenším počtu kroků."
-              : "Transform the starting 4-letter word into the goal target word (e.g. BOAT ➔ COOP or COLD ➔ WARM) in as few steps as possible."}
+              ? "Cílem hry je proměnit počáteční 4-písmenné slovo v cílové slovo (např. BOAT ➔ COOP) v co nejmenším počtu kroků."
+              : "Transform the starting 4-letter word into the goal target word (e.g. BOAT ➔ COOP) in as few steps as possible."}
           </p>
 
-          <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl p-4 space-y-3">
+          {/* Rules Card */}
+          <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl p-4 space-y-2.5">
             <h3 className="font-semibold text-zinc-200 flex items-center gap-1.5 text-xs uppercase tracking-wider">
               <Sparkles size={14} className="text-amber-400" />
-              {lang === "cs" ? "Pravidla žebříčku slov" : "Word Ladder Rules"}
+              {lang === "cs" ? "Základní pravidla" : "Core Rules"}
             </h3>
 
             <ul className="space-y-2 text-xs">
@@ -55,68 +56,70 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ isOpen, onClose,
                 <span className="text-amber-400 font-bold">2.</span>
                 <span>
                   {lang === "cs"
-                    ? "Každé mezilehlé slovo musí být platné 4-písmenné anglické slovo ze slovníku."
+                    ? "Každé slovo musí být platné anglické slovo ze slovníku."
                     : "Every intermediate step must be a valid 4-letter English word."}
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-400 font-bold">3.</span>
-                <span>
-                  {lang === "cs"
-                    ? "Můžeš využít postranní Ověřovač slovníku pro kontrolu slov ještě před tahem."
-                    : "Use the built-in Word Verifier sidebar to test any word before playing it."}
                 </span>
               </li>
             </ul>
           </div>
 
-          <div>
-            <h4 className="font-semibold text-zinc-200 mb-2 text-xs uppercase tracking-wider">
-              {lang === "cs" ? "Příklad postupu (BOAT ➔ COOP):" : "Example Walkthrough (BOAT ➔ COOP):"}
-            </h4>
-            <div className="flex flex-col gap-1.5 items-center bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80 font-mono text-xs">
-              <div className="flex items-center gap-2">
-                <span className="bg-zinc-800 px-2 py-1 rounded text-emerald-400 font-bold">BOAT</span>
-                <span className="text-zinc-500 text-[10px]">{lang === "cs" ? "Start" : "Start"}</span>
+          {/* Distance Elevation Visualization Explanation */}
+          <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-4 space-y-2.5">
+            <h3 className="font-semibold text-amber-400 text-xs uppercase tracking-wider">
+              {lang === "cs" ? "📊 Úrovně vzdálenosti (Elevation Grid)" : "📊 Distance Elevation Tiers"}
+            </h3>
+            <p className="text-xs text-zinc-400">
+              {lang === "cs"
+                ? "Každé zadané slovo se automaticky zařadí do úrovně podle toho, jak blízko je k cíli:"
+                : "Each word you play is automatically placed on an elevation tier based on how close you are to the goal:"}
+            </p>
+
+            <div className="space-y-2 text-xs font-medium">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/40 text-emerald-300">
+                <ArrowDown size={16} className="text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold">{lang === "cs" ? "Řádek níže:" : "Row below:"} </span>
+                  {lang === "cs" ? "Přiblížil/a ses k cíli (méně kroků do cíle)." : "You got closer (fewer steps needed to goal)."}
+                </div>
               </div>
-              <ArrowRight size={12} className="text-zinc-600 rotate-90" />
-              <div className="flex items-center gap-2">
-                <span className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">
-                  <span className="text-amber-400 font-bold">C</span>OAT
-                </span>
-                <span className="text-zinc-500 text-[10px]">{lang === "cs" ? "B ➔ C" : "B ➔ C"}</span>
+
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-950/40 border border-amber-800/40 text-amber-300">
+                <ArrowRight size={16} className="text-amber-400 shrink-0" />
+                <div>
+                  <span className="font-bold">{lang === "cs" ? "Vedle na stejném řádku:" : "Next to it in same row:"} </span>
+                  {lang === "cs" ? "Vzdálenost se nezměnila (neutrální tah)." : "Distance didn't change (neutral move)."}
+                </div>
               </div>
-              <ArrowRight size={12} className="text-zinc-600 rotate-90" />
-              <div className="flex items-center gap-2">
-                <span className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">
-                  C<span className="text-amber-400 font-bold">H</span>AT
-                </span>
-                <span className="text-zinc-500 text-[10px]">{lang === "cs" ? "O ➔ H" : "O ➔ H"}</span>
-              </div>
-              <ArrowRight size={12} className="text-zinc-600 rotate-90" />
-              <div className="flex items-center gap-2">
-                <span className="bg-zinc-800 px-2 py-1 rounded text-zinc-300">
-                  CH<span className="text-amber-400 font-bold">O</span>P
-                </span>
-                <span className="text-zinc-500 text-[10px]">{lang === "cs" ? "A ➔ O, T ➔ P" : "T ➔ P"}</span>
-              </div>
-              <ArrowRight size={12} className="text-zinc-600 rotate-90" />
-              <div className="flex items-center gap-2">
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-1 rounded font-bold">
-                  C<span className="text-amber-400">O</span>OP
-                </span>
-                <span className="text-amber-400 font-bold text-[10px]">{lang === "cs" ? "Cíl! 🎯" : "Goal! 🎯"}</span>
+
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300">
+                <ArrowUp size={16} className="text-rose-400 shrink-0" />
+                <div>
+                  <span className="font-bold">{lang === "cs" ? "Řádek výše:" : "Line above:"} </span>
+                  {lang === "cs" ? "Vzdálil/a ses od cíle (počet kroků vzrostl)." : "You got farther away (step count increased)."}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-start gap-2 bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-3 text-xs text-emerald-300">
+          {/* Mobile Keyboard Tip */}
+          <div className="flex items-start gap-2 bg-indigo-950/40 border border-indigo-800/40 rounded-xl p-3 text-xs text-indigo-300">
+            <Smartphone size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">{lang === "cs" ? "Ovládání na telefonu: " : "Phone Control: "}</span>
+              {lang === "cs"
+                ? "Stačí klepnout na herní pole a otevře se ti tvá nativní klávesnice telefonu pro snadné a rychlé psaní."
+                : "Simply tap the board or input boxes to open your phone's native keyboard for fast typing."}
+            </div>
+          </div>
+
+          {/* PAR explanation */}
+          <div className="flex items-start gap-2 bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3 text-xs text-emerald-300">
             <AlertCircle size={16} className="shrink-0 mt-0.5" />
             <div>
               <span className="font-bold">{lang === "cs" ? "Co je PAR?" : "What is PAR?"} </span>
               {lang === "cs"
-                ? "PAR je minimální teoretický počet tahů potřebný k vyřešení hádanky, vypočtený naším AI grafovým algoritmem. Zkus uhrát PAR nebo ještě lepší výsledek!"
-                : "PAR is the shortest possible path to victory calculated by our graph solver algorithm. Try to match or beat PAR!"}
+                ? "PAR je minimální možný počet kroků k vyřešení hádanky, vypočtený naším AI grafovým algoritmem."
+                : "PAR is the theoretical minimum number of steps to reach the goal calculated by our BFS algorithm."}
             </div>
           </div>
         </div>

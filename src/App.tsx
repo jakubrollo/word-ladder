@@ -13,6 +13,8 @@ import {
   Infinity as InfinityIcon,
   Sliders,
   Compass,
+  Keyboard,
+  Smartphone,
 } from "lucide-react";
 import { LadderBoard } from "./components/LadderBoard";
 import { VirtualKeyboard } from "./components/VirtualKeyboard";
@@ -22,7 +24,7 @@ import { StatsModal } from "./components/StatsModal";
 import { WinModal } from "./components/WinModal";
 import { CustomGameModal } from "./components/CustomGameModal";
 import { VALID_WORDS_SET } from "./logic/wordList";
-import { validateGuess, getNextHint } from "./logic/solver";
+import { validateGuess, getNextHint, calculatePar } from "./logic/solver";
 import type { GameMode, PuzzleInfo, GameStats } from "./logic/gameState";
 import {
   getDailyPuzzle,
@@ -119,6 +121,7 @@ export default function App() {
   const [stats, setStats] = useState<GameStats>(() => loadStats());
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [mobileVerifierOpen, setMobileVerifierOpen] = useState<boolean>(false);
+  const [showVirtualKeyboard, setShowVirtualKeyboard] = useState<boolean>(false);
 
   // Modals
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
@@ -241,8 +244,12 @@ export default function App() {
         return;
       }
 
-      // Valid step!
-      sounds.playStep();
+      // Valid step! Compute direction delta
+      const prevDist = calculatePar(lastWord, puzzle.targetWord);
+      const newDist = calculatePar(upper, puzzle.targetWord);
+      const delta = newDist - prevDist;
+      sounds.playStep(delta);
+
       const newPath = [...path, upper];
       setPath(newPath);
       setCurrentInput("");
@@ -319,8 +326,8 @@ export default function App() {
     setCurrentInput(hint.nextWord);
     setErrorMessage(
       lang === "cs"
-        ? `Nápověda: Zkus slovo '${hint.nextWord}' (zbývá ${hint.remainingSteps} kroků do cíle)`
-        : `Hint: Try '${hint.nextWord}' (${hint.remainingSteps} steps to target)`
+        ? `Nápověda: Zkus '${hint.nextWord}' (posune tě o krok blíž)`
+        : `Hint: Try '${hint.nextWord}' (takes you 1 step closer)`
     );
   }, [isWon, lang, path, puzzle.targetWord]);
 
@@ -368,7 +375,7 @@ export default function App() {
       <header className="w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-6 py-2.5 flex items-center justify-between">
         {/* Left: Back to Portfolio */}
         <a
-          href="/"
+          href="https://jakubrollo.github.io/"
           className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/80 border border-transparent hover:border-zinc-700"
         >
           <ArrowLeft size={15} />
@@ -383,7 +390,7 @@ export default function App() {
               WORD LADDER
             </h1>
             <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
-              GRAPH PUZZLE
+              GRAPH ELEVATION
             </span>
           </div>
 
@@ -491,8 +498,8 @@ export default function App() {
 
       {/* Main Game Layout: Side-by-side on desktop, stacked on mobile */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-2 sm:px-4 py-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
-        {/* Left / Primary Area: Ladder Board */}
-        <div className="w-full max-w-md flex flex-col items-center">
+        {/* Left / Primary Area: Distance Elevation Ladder Board */}
+        <div className="w-full max-w-xl flex flex-col items-center">
           <LadderBoard
             startWord={puzzle.startWord}
             targetWord={puzzle.targetWord}
@@ -502,6 +509,9 @@ export default function App() {
             par={puzzle.par}
             shakeRow={shakeRow}
             errorMessage={errorMessage}
+            onInputChange={setCurrentInput}
+            onSubmitGuess={handleEnter}
+            lang={lang}
           />
 
           {/* Mobile Verifier Toggle Button */}
@@ -509,7 +519,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setMobileVerifierOpen((prev) => !prev)}
-              className="w-full py-1.5 px-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white flex items-center justify-center gap-1.5 transition"
+              className="w-full py-2 px-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white flex items-center justify-center gap-1.5 transition"
             >
               <Compass size={14} className="text-amber-400" />
               <span>
@@ -550,6 +560,17 @@ export default function App() {
                 ? `Proměň '${puzzle.startWord}' na '${puzzle.targetWord}' změnou 1 písmene v každém kroku.`
                 : `Transform '${puzzle.startWord}' into '${puzzle.targetWord}' one letter at a time.`}
             </div>
+            <div className="pt-1 text-[11px] text-zinc-400 border-t border-zinc-800/80 flex flex-col gap-1">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                <span>↓</span> {lang === "cs" ? "Krok níže = přiblížení k cíli" : "Step below = closer to goal"}
+              </div>
+              <div className="flex items-center gap-1.5 text-amber-400 font-medium">
+                <span>→</span> {lang === "cs" ? "Vedle = stejná vzdálenost" : "Next to = same distance"}
+              </div>
+              <div className="flex items-center gap-1.5 text-rose-400 font-medium">
+                <span>↑</span> {lang === "cs" ? "Řádek výše = vzdálení od cíle" : "Line above = farther away"}
+              </div>
+            </div>
           </div>
 
           {/* Word Verifier Widget */}
@@ -562,51 +583,74 @@ export default function App() {
         </div>
       </main>
 
-      {/* Control Buttons (Undo / Hint / Restart) & Virtual Keyboard */}
+      {/* Control Buttons (Undo / Hint / Reset / Keyboard Toggle) & Keyboard */}
       <footer className="w-full bg-zinc-950/80 border-t border-zinc-800/80 pt-1.5 pb-2">
         {/* QoL Helper Buttons */}
-        <div className="w-full max-w-md mx-auto px-4 flex items-center justify-between mb-1.5 text-xs text-zinc-400">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={isWon || path.length <= 1}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
-            title="Undo last move"
-          >
-            <Undo2 size={14} />
-            <span>{lang === "cs" ? "Zpět" : "Undo"}</span>
-          </button>
+        <div className="w-full max-w-xl mx-auto px-4 flex items-center justify-between mb-1.5 text-xs text-zinc-400">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={isWon || path.length <= 1}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+              title="Undo last move"
+            >
+              <Undo2 size={14} />
+              <span>{lang === "cs" ? "Zpět" : "Undo"}</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={handleHint}
-            disabled={isWon}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-800/60 text-amber-300 transition cursor-pointer"
-            title="Get optimal next hint"
-          >
-            <Lightbulb size={14} className="text-amber-400" />
-            <span>{lang === "cs" ? "Nápověda" : "Hint"}</span>
-          </button>
+            <button
+              type="button"
+              onClick={handleHint}
+              disabled={isWon}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-800/60 text-amber-300 transition cursor-pointer"
+              title="Get optimal next hint"
+            >
+              <Lightbulb size={14} className="text-amber-400" />
+              <span>{lang === "cs" ? "Nápověda" : "Hint"}</span>
+            </button>
 
+            <button
+              type="button"
+              onClick={handleRestart}
+              disabled={isWon || path.length <= 1}
+              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+              title="Restart puzzle"
+            >
+              <RotateCcw size={14} />
+              <span>{lang === "cs" ? "Restart" : "Reset"}</span>
+            </button>
+          </div>
+
+          {/* Virtual Keyboard Toggle for Mobile / Touch */}
           <button
             type="button"
-            onClick={handleRestart}
-            disabled={isWon || path.length <= 1}
-            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
-            title="Restart puzzle"
+            onClick={() => setShowVirtualKeyboard((prev) => !prev)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+            title={showVirtualKeyboard ? "Use native phone keyboard" : "Show on-screen keyboard"}
           >
-            <RotateCcw size={14} />
-            <span>{lang === "cs" ? "Restart" : "Reset"}</span>
+            {showVirtualKeyboard ? <Smartphone size={13} className="text-emerald-400" /> : <Keyboard size={13} />}
+            <span className="hidden sm:inline">
+              {showVirtualKeyboard
+                ? lang === "cs"
+                  ? "Klávesnice telefonu"
+                  : "Phone Keyboard"
+                : lang === "cs"
+                ? "Virtuální klávesnice"
+                : "On-Screen Keys"}
+            </span>
           </button>
         </div>
 
-        {/* On-screen Keyboard */}
-        <VirtualKeyboard
-          onChar={handleChar}
-          onEnter={handleEnter}
-          onDelete={handleDelete}
-          targetWord={puzzle.targetWord}
-        />
+        {/* On-screen Keyboard (optional on mobile, toggleable) */}
+        {showVirtualKeyboard && (
+          <VirtualKeyboard
+            onChar={handleChar}
+            onEnter={handleEnter}
+            onDelete={handleDelete}
+            targetWord={puzzle.targetWord}
+          />
+        )}
       </footer>
 
       {/* Modals */}
@@ -646,4 +690,4 @@ export default function App() {
       />
     </div>
   );
-};
+}

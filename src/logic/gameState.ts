@@ -347,22 +347,50 @@ class SoundEffects {
     }
   }
 
-  playStep() {
+  playStep(delta: number = 0) {
     if (!this.enabled) return;
     this.initCtx();
     if (!this.ctx) return;
     try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(587.33, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.14);
+      if (delta < 0) {
+        // Closer (descending to goal): Bright upward two-tone
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(587.33, this.ctx.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.12); // A5
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.14);
+      } else if (delta === 0) {
+        // Neutral (same distance): Soft mid tone
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(523.25, this.ctx.currentTime); // C5
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+      } else {
+        // Farther away (ascending distance): Warning descending tone
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(329.63, this.ctx.currentTime + 0.14); // E4
+        gain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.14);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.14);
+      }
     } catch {
       // Ignore audio errors
     }
