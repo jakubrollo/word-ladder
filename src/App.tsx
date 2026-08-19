@@ -384,49 +384,54 @@ export default function App() {
       />
 
       {/* Top Navbar */}
-      <header className="w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-30 px-2.5 sm:px-6 py-2 flex items-center justify-between gap-1.5 touch-manipulation">
+      <header className="w-full border-b border-zinc-800/80 bg-zinc-950/95 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-6 h-13 sm:h-14 flex items-center justify-between gap-2 touch-manipulation">
         {/* Left: Back to Portfolio */}
         <a
           href="https://jakubrollo.github.io/"
-          className="flex items-center gap-1 text-xs font-semibold text-zinc-400 hover:text-white transition px-2 py-1.5 rounded-lg hover:bg-zinc-800/80 border border-transparent hover:border-zinc-700 shrink-0"
+          className="flex items-center gap-1 text-xs font-semibold text-zinc-400 hover:text-white transition p-1.5 rounded-lg hover:bg-zinc-800 border border-transparent hover:border-zinc-700 shrink-0"
           title={lang === "cs" ? "Zpět na portfolio" : "Portfolio"}
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={17} />
           <span className="hidden md:inline">{lang === "cs" ? "Portfolio" : "Portfolio"}</span>
         </a>
 
-        {/* Center: Brand & Mode Badges */}
-        <div className="flex flex-col items-center min-w-0 flex-1 px-1">
-          <div className="flex items-center gap-1.5">
-            <h1 className="font-extrabold tracking-wider text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 truncate">
-              WORD LADDER
-            </h1>
-            <span className="hidden sm:inline-block text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded">
-              GRAPH
-            </span>
-          </div>
-
-          <div className="text-[10px] text-zinc-400 font-mono truncate max-w-full">
-            {mode === "daily" && (
-              <span>
-                {lang === "cs" ? "Denní" : "Daily"} #{puzzle.puzzleNumber}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
-              </span>
-            )}
-            {mode === "unlimited" && (
-              <span>
-                {lang === "cs" ? "Trénink" : "Practice"}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
-              </span>
-            )}
-            {mode === "custom" && (
-              <span>
-                {lang === "cs" ? "Vlastní" : "Custom"}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
-              </span>
-            )}
-          </div>
+        {/* Center: Brand Title */}
+        <div className="flex items-center justify-center min-w-0 flex-1">
+          <span className="font-black tracking-widest text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 truncate text-center select-none">
+            WORD LADDER
+          </span>
         </div>
 
         {/* Right: Actions & Segmented Lang */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Segmented Lang Switcher - Mobile optimized */}
+          <div className="flex items-center bg-zinc-900 border border-zinc-700/80 rounded-md p-0.5 text-[11px] sm:text-xs font-mono font-bold">
+            <button
+              type="button"
+              onClick={() => setLang("cs")}
+              className={`px-1.5 sm:px-2 py-0.5 rounded transition cursor-pointer touch-manipulation ${
+                lang === "cs"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="Čeština"
+            >
+              CZ
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang("en")}
+              className={`px-1.5 sm:px-2 py-0.5 rounded transition cursor-pointer touch-manipulation ${
+                lang === "en"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="English"
+            >
+              EN
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={toggleSound}
@@ -456,44 +461,16 @@ export default function App() {
           >
             <Trophy size={16} />
           </button>
-
-          {/* Segmented Lang Switcher - Mobile optimized */}
-          <div className="flex items-center bg-zinc-900 border border-zinc-700/80 rounded-md p-0.5 text-[11px] font-mono font-bold">
-            <button
-              type="button"
-              onClick={() => setLang("cs")}
-              className={`px-1.5 py-0.5 rounded transition cursor-pointer touch-manipulation ${
-                lang === "cs"
-                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-              title="Čeština"
-            >
-              CZ
-            </button>
-            <button
-              type="button"
-              onClick={() => setLang("en")}
-              className={`px-1.5 py-0.5 rounded transition cursor-pointer touch-manipulation ${
-                lang === "en"
-                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-              title="English"
-            >
-              EN
-            </button>
-          </div>
         </div>
       </header>
 
       {/* Mode Selector Pill Bar */}
-      <div className="w-full max-w-lg mx-auto px-4 pt-2 pb-1 flex items-center justify-center">
+      <div className="w-full max-w-lg mx-auto px-3 pt-2 pb-1 flex items-center justify-center">
         <div className="flex items-center bg-zinc-950/90 border border-zinc-800 rounded-xl p-1 gap-1 w-full text-xs">
           <button
             type="button"
             onClick={startDaily}
-            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer touch-manipulation ${
               mode === "daily"
                 ? "bg-amber-500 text-zinc-950 font-bold shadow"
                 : "text-zinc-400 hover:text-zinc-200"
@@ -506,20 +483,20 @@ export default function App() {
           <button
             type="button"
             onClick={startUnlimited}
-            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer touch-manipulation ${
               mode === "unlimited"
                 ? "bg-amber-500 text-zinc-950 font-bold shadow"
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
             <InfinityIcon size={13} />
-            <span>{lang === "cs" ? "Trénink" : "Unlimited"}</span>
+            <span>{lang === "cs" ? "Trénink" : "Practice"}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setShowCustom(true)}
-            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer touch-manipulation ${
               mode === "custom"
                 ? "bg-amber-500 text-zinc-950 font-bold shadow"
                 : "text-zinc-400 hover:text-zinc-200"
@@ -528,6 +505,24 @@ export default function App() {
             <Sliders size={13} />
             <span>{lang === "cs" ? "Vlastní" : "Custom"}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Objective Route & Target Status Banner */}
+      <div className="w-full max-w-lg mx-auto px-3 py-1 flex items-center justify-between text-xs font-mono">
+        <div className="flex items-center gap-1.5">
+          <span className="text-zinc-400">{lang === "cs" ? "Start:" : "Start:"}</span>
+          <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-white font-bold tracking-wider">
+            {puzzle.startWord}
+          </span>
+          <span className="text-zinc-500">➔</span>
+          <span className="text-zinc-400">{lang === "cs" ? "Cíl:" : "Goal:"}</span>
+          <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-600/60 text-amber-300 font-bold tracking-wider">
+            {puzzle.targetWord}
+          </span>
+        </div>
+        <div className="text-[11px] font-bold text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded shrink-0">
+          PAR: {puzzle.par}
         </div>
       </div>
 
