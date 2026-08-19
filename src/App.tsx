@@ -448,14 +448,33 @@ export default function App() {
             <Trophy size={18} />
           </button>
 
-          {/* Lang switcher */}
-          <button
-            type="button"
-            onClick={() => setLang(lang === "en" ? "cs" : "en")}
-            className="text-xs font-bold px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-zinc-700 cursor-pointer"
-          >
-            {lang === "en" ? "CZ" : "EN"}
-          </button>
+          {/* Explicit Segmented Lang Switcher */}
+          <div className="flex items-center bg-zinc-900 border border-zinc-700/80 rounded-lg p-0.5 text-xs font-mono font-bold">
+            <button
+              type="button"
+              onClick={() => setLang("cs")}
+              className={`px-2 py-1 rounded transition cursor-pointer ${
+                lang === "cs"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="Čeština"
+            >
+              CZ
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang("en")}
+              className={`px-2 py-1 rounded transition cursor-pointer ${
+                lang === "en"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              title="English"
+            >
+              EN
+            </button>
+          </div>
         </div>
       </header>
 

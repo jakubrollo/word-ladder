@@ -55,7 +55,7 @@ export function findReachableTargets(
   startWord: string,
   minDist: number = 3,
   maxDist: number = 6,
-  lang: "en" | "cs" = "en"
+  lang: string = "en"
 ): Array<{ word: string; dist: number; path: string[] }> {
   const wordSet = getValidWordsSet(lang);
   const commonSet = new Set(getCommonStartWords(lang));
@@ -100,8 +100,9 @@ export function getDailyPuzzle(lang: "en" | "cs" = "en", dateStr: string = getTo
   const commonWords = getCommonStartWords(lang);
   const wordSet = getValidWordsSet(lang);
 
-  // Pick start word deterministically
-  const startIndex = Math.floor(rng() * commonWords.length);
+  // Pick start word deterministically from primary familiar words
+  const poolSize = Math.min(300, commonWords.length);
+  const startIndex = Math.floor(rng() * poolSize);
   let startWord = commonWords[startIndex] || (lang === "cs" ? "VODA" : "BOAT");
 
   // Find reachable targets at distance 3 to 5
@@ -140,12 +141,13 @@ export function getDailyPuzzle(lang: "en" | "cs" = "en", dateStr: string = getTo
 /**
  * Generates a fresh random puzzle with dynamic start and target words for Unlimited mode.
  */
-export function getRandomPuzzle(lang: "en" | "cs" = "en", minPar: number = 3, maxPar: number = 5): PuzzleInfo {
+export function getRandomPuzzle(lang: string = "en", minPar: number = 3, maxPar: number = 5): PuzzleInfo {
   const commonWords = getCommonStartWords(lang);
   const wordSet = getValidWordsSet(lang);
+  const poolSize = Math.min(300, commonWords.length);
 
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const randIndex = Math.floor(Math.random() * commonWords.length);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const randIndex = Math.floor(Math.random() * poolSize);
     const startWord = commonWords[randIndex];
 
     const targets = findReachableTargets(startWord, minPar, maxPar, lang);
