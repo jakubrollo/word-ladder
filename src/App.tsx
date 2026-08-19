@@ -236,8 +236,6 @@ export default function App() {
           triggerError(lang === "cs" ? `'${upper}' není v anglickém slovníku!` : `'${upper}' is not in dictionary!`);
         } else if (validation.reason === "NOT_ONE_LETTER_DIFF") {
           triggerError(lang === "cs" ? `Musíš změnit přesně 1 písmeno od '${lastWord}'!` : `Must change exactly 1 letter from '${lastWord}'!`);
-        } else if (validation.reason === "ALREADY_USED") {
-          triggerError(lang === "cs" ? "Toto slovo jsi již v žebříčku použil/a!" : "Word already used in this ladder!");
         } else {
           triggerError(lang === "cs" ? "Neplatný tah!" : "Invalid move!");
         }

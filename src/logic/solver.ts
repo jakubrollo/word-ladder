@@ -151,16 +151,17 @@ export function getAllOptimalNextMoves(
 
 export interface ValidationResult {
   valid: boolean;
-  reason?: "NOT_4_LETTERS" | "NOT_IN_DICTIONARY" | "NOT_ONE_LETTER_DIFF" | "ALREADY_USED";
+  reason?: "NOT_4_LETTERS" | "NOT_IN_DICTIONARY" | "NOT_ONE_LETTER_DIFF";
 }
 
 /**
- * Validates whether a guess is valid according to Poople rules.
+ * Validates whether a guess is valid according to Word Ladder rules.
+ * Allows repeating previously written words (e.g. HERO -> HERB -> HERO).
  */
 export function validateGuess(
   guess: string,
   previousWord: string,
-  history: string[],
+  _history?: string[],
   wordSet: ReadonlySet<string> = VALID_WORDS_SET
 ): ValidationResult {
   const upper = guess.toUpperCase().trim();
@@ -172,9 +173,6 @@ export function validateGuess(
   }
   if (!isOneLetterDiff(previousWord, upper)) {
     return { valid: false, reason: "NOT_ONE_LETTER_DIFF" };
-  }
-  if (history.includes(upper)) {
-    return { valid: false, reason: "ALREADY_USED" };
   }
   return { valid: true };
 }

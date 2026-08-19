@@ -58,10 +58,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       return { status: "not_1_diff", text: lang === "cs" ? "Změň 1 písmeno" : "Must change 1 letter" };
     }
 
-    if (path.includes(clean)) {
-      return { status: "used", text: lang === "cs" ? "Již použito" : "Already used" };
-    }
-
     const nextDist = calculatePar(clean, targetWord);
     if (nextDist < currentDist) {
       return {

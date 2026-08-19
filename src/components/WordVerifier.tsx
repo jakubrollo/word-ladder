@@ -46,17 +46,6 @@ export const WordVerifier: React.FC<WordVerifierProps> = ({
 
     const is1Diff = isOneLetterDiff(currentLadderWord, cleanQuery);
     const diffIdx = is1Diff ? getDiffIndex(currentLadderWord, cleanQuery) : -1;
-    const alreadyUsed = ladderHistory.includes(cleanQuery);
-
-    if (alreadyUsed) {
-      return {
-        status: "used",
-        inDict: true,
-        canPlay: false,
-        message: lang === "cs" ? "Platné slovo, ale již použito v žebříčku" : "Valid word, but already used in ladder",
-      };
-    }
-
     if (is1Diff) {
       return {
         status: "playable",
@@ -79,14 +68,12 @@ export const WordVerifier: React.FC<WordVerifierProps> = ({
           ? `Platné slovo, ale neliší se právě o 1 písmeno od '${currentLadderWord}'`
           : `Valid word, but doesn't differ by 1 letter from '${currentLadderWord}'`,
     };
-  }, [cleanQuery, currentLadderWord, ladderHistory, lang]);
+  }, [cleanQuery, currentLadderWord, lang]);
 
   // Valid 1-letter neighbors for current word
   const availableNeighbors = useMemo(() => {
-    return getNeighbors(currentLadderWord, VALID_WORDS_SET).filter(
-      (w) => !ladderHistory.includes(w)
-    );
-  }, [currentLadderWord, ladderHistory]);
+    return getNeighbors(currentLadderWord, VALID_WORDS_SET);
+  }, [currentLadderWord]);
 
   const handlePlay = (wordToPlay: string) => {
     if (onPlayWord) {
