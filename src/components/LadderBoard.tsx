@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ArrowDown, ArrowRight, ArrowUp, Sparkles, Target, CornerDownLeft } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, CornerDownLeft } from "lucide-react";
 import { VALID_WORDS_SET } from "../logic/wordList";
 import { calculatePar, isOneLetterDiff, getDiffIndex } from "../logic/solver";
 
@@ -46,10 +46,8 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Compute 2D Grid Layout where:
-  // - row = distance to target (Y-axis)
-  // - col = branch column (X-axis, words coming from same parent stay in same column)
-  const { gridNodes, maxCol, maxRow, activeNode } = useMemo(() => {
+  // Compute 2D Grid Layout
+  const { gridNodes, maxCol, maxRow, activeNode, verticalConnectors } = useMemo(() => {
     const nodeMap = new Map<string, GridWordNode>();
     const occupied = new Set<string>(); // "col,row"
     const nodes: GridWordNode[] = [];
@@ -127,11 +125,29 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       if (node.isLatest) currentActive = node;
     }
 
+    // Vertical connectors between consecutive rows at specific columns
+    // Map key: `${col},${rowBetween}` -> "down" | "up"
+    const vertMap = new Map<string, "down" | "up">();
+    for (let i = 0; i < path.length - 1; i++) {
+      const fromNode = nodeMap.get(path[i])!;
+      const toNode = nodeMap.get(path[i + 1])!;
+      if (fromNode.col === toNode.col && fromNode.row !== toNode.row) {
+        if (toNode.row < fromNode.row) {
+          // Descending down (e.g. from row 3 to row 2) -> connector below row 3
+          vertMap.set(`${fromNode.col},${fromNode.row}`, "down");
+        } else {
+          // Ascending up (e.g. from row 2 to row 3) -> connector above row 2
+          vertMap.set(`${fromNode.col},${toNode.row}`, "up");
+        }
+      }
+    }
+
     return {
       gridNodes: nodes,
       maxCol: currentMaxCol,
       maxRow: currentMaxRow,
       activeNode: currentActive,
+      verticalConnectors: vertMap,
     };
   }, [isWon, par, path, targetWord]);
 
@@ -174,7 +190,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     }
   }, [currentDist, currentInput, lang, path, targetWord]);
 
-  // Map for fast O(1) lookup of node at (col, row)
+  // Fast cell lookup
   const cellMap = useMemo(() => {
     const map = new Map<string, GridWordNode>();
     for (const node of gridNodes) {
@@ -206,27 +222,27 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   return (
     <div
       onClick={handleBoardClick}
-      className="flex flex-col items-center w-full max-w-2xl mx-auto px-2 sm:px-4 py-2 select-none"
+      className="flex flex-col items-center w-full max-w-xl mx-auto px-2 select-none"
     >
       {/* Top Status Banner */}
-      <div className="flex items-center justify-between w-full mb-3 px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs sm:text-sm text-zinc-300 shadow">
-        <div className="flex items-center gap-2">
-          <span className="text-zinc-400">{lang === "cs" ? "Odehráno kroků:" : "Steps:"}</span>
-          <span className="font-mono font-bold text-amber-400 text-base">{path.length - 1}</span>
+      <div className="flex items-center justify-between w-full mb-3 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-300 font-mono">
+        <div className="flex items-center gap-1.5">
+          <span className="text-zinc-400">{lang === "cs" ? "Kroků:" : "Steps:"}</span>
+          <span className="font-bold text-amber-400 text-base">{path.length - 1}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span className="text-zinc-400">Par:</span>
-          <span className="font-mono font-bold text-emerald-400 text-base">{par}</span>
+          <span className="font-bold text-emerald-400 text-base">{par}</span>
         </div>
-        <div className="flex items-center gap-1.5 font-mono text-xs">
-          <span className="text-zinc-400">{lang === "cs" ? "Vzdálenost k cíli:" : "To Goal:"}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-zinc-400">{lang === "cs" ? "Vzdálenost:" : "Distance:"}</span>
           <span
-            className={`font-bold px-2 py-0.5 rounded-full ${
+            className={`font-bold px-2 py-0.5 rounded text-xs ${
               currentDist === 0
-                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
                 : currentDist <= 2
-                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                : "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                ? "bg-amber-950 text-amber-300 border border-amber-700"
+                : "bg-zinc-800 text-zinc-300"
             }`}
           >
             {currentDist} {lang === "cs" ? "kroků" : "steps"}
@@ -236,7 +252,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 
       {/* Path Breadcrumbs Trail */}
       {path.length > 1 && (
-        <div className="w-full mb-2.5 px-3 py-1.5 rounded-xl bg-zinc-950/80 border border-zinc-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-thin text-xs font-mono">
+        <div className="w-full mb-3 px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800/80 flex items-center gap-1.5 overflow-x-auto scrollbar-thin text-xs font-mono">
           <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold shrink-0">
             {lang === "cs" ? "Cesta:" : "Trail:"}
           </span>
@@ -245,55 +261,55 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
             return (
               <React.Fragment key={`trail-${idx}-${word}`}>
                 <span
-                  className={`px-2 py-0.5 rounded font-bold shrink-0 transition-all ${
+                  className={`px-1.5 py-0.5 rounded font-bold shrink-0 transition-all ${
                     idx === 0
-                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
+                      ? "text-emerald-400 bg-emerald-950/60"
                       : isLast
-                      ? "bg-amber-500/20 text-amber-300 border-2 border-amber-400 shadow animate-pulse"
-                      : "bg-zinc-800 text-zinc-300 border border-zinc-700"
+                      ? "text-amber-300 bg-amber-950/80 border border-amber-500"
+                      : "text-zinc-300 bg-zinc-800"
                   }`}
                 >
                   {word}
                 </span>
-                {!isLast && <span className="text-amber-400 font-bold shrink-0">➔</span>}
+                {!isLast && <span className="text-zinc-500 font-bold shrink-0">➔</span>}
               </React.Fragment>
             );
           })}
         </div>
       )}
 
-      {/* 2D Grid Elevation Board Container */}
-      <div className="w-full max-h-[48vh] sm:max-h-[52vh] overflow-auto pr-1 flex flex-col gap-3 scrollbar-thin scrollbar-thumb-zinc-700">
+      {/* 2D Grid Elevation Board */}
+      <div className="w-full max-h-[46vh] sm:max-h-[50vh] overflow-auto pr-1 flex flex-col items-center gap-1 scrollbar-thin scrollbar-thumb-zinc-700">
         {rowTiers.map((r) => {
           const isGoalRow = r === 0;
           const isCurrentActiveRow = currentDist === r && !isWon;
           const rowHasNodes = gridNodes.some((n) => n.row === r);
 
           return (
-            <div
-              key={`row-tier-${r}`}
-              className={`w-full rounded-2xl p-2.5 sm:p-3 transition-all duration-300 border ${
-                isGoalRow
-                  ? isWon
-                    ? "bg-emerald-950/40 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.2)]"
-                    : "bg-zinc-950/80 border-amber-500/30"
-                  : isCurrentActiveRow
-                  ? "bg-zinc-900/90 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
-                  : rowHasNodes
-                  ? "bg-zinc-900/60 border-zinc-800/80"
-                  : "bg-zinc-950/30 border-zinc-900 opacity-50"
-              }`}
-            >
-              {/* Row Header Indicator */}
-              <div className="flex items-center justify-between mb-2 px-1">
-                <div className="flex items-center gap-1.5">
+            <div key={`tier-row-${r}`} className="w-full flex flex-col items-center">
+              {/* Row Container */}
+              <div
+                className={`w-full rounded-xl p-2.5 transition-all flex flex-col gap-1 border ${
+                  isGoalRow
+                    ? isWon
+                      ? "bg-emerald-950/40 border-emerald-500/60"
+                      : "bg-zinc-900/90 border-amber-500/40"
+                    : isCurrentActiveRow
+                    ? "bg-zinc-900 border-amber-500/50 shadow-sm"
+                    : rowHasNodes
+                    ? "bg-zinc-900/60 border-zinc-800"
+                    : "bg-zinc-950/30 border-zinc-900/60 opacity-40"
+                }`}
+              >
+                {/* Row Header Label */}
+                <div className="flex items-center justify-between text-[11px] font-mono px-1">
                   <span
-                    className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider font-mono px-2 py-0.5 rounded-md ${
+                    className={`font-bold uppercase tracking-wider ${
                       isGoalRow
-                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                        ? "text-amber-400"
                         : r === 1
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                        : "bg-zinc-800 text-zinc-400"
+                        ? "text-emerald-400"
+                        : "text-zinc-400"
                     }`}
                   >
                     {isGoalRow
@@ -302,178 +318,155 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                         : "GOAL (0 steps) 🎯"
                       : lang === "cs"
                       ? `${r} kroků k cíli`
-                      : `${r} steps from Goal`}
+                      : `${r} steps to goal`}
                   </span>
 
                   {isCurrentActiveRow && (
-                    <span className="text-[10px] font-bold text-amber-400 animate-pulse">
-                      ◀ {lang === "cs" ? "Aktuální úroveň" : "Current Level"}
+                    <span className="text-[10px] font-bold text-amber-400 font-mono">
+                      ◀ {lang === "cs" ? "Zde jsi" : "You are here"}
                     </span>
                   )}
                 </div>
-              </div>
 
-              {/* Matrix of Columns in this Row Tier */}
-              <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                {Array.from({ length: maxCol + 1 }).map((_, c) => {
-                  const node = cellMap.get(`${c},${r}`);
+                {/* Horizontal Grid Columns in this Row */}
+                <div className="flex items-center gap-2 overflow-x-auto py-1">
+                  {Array.from({ length: maxCol + 1 }).map((_, c) => {
+                    const node = cellMap.get(`${c},${r}`);
+                    const hasRightSibling = c < maxCol && cellMap.has(`${c + 1},${r}`);
 
-                  // If this is Goal Tier (r = 0) and column is 0 (or winning column), show Target Word
-                  if (isGoalRow && c === (activeNode?.col ?? 0)) {
-                    return (
-                      <div
-                        key={`goal-tile-${c}`}
-                        className={`flex flex-col items-center p-2 rounded-xl border min-w-[130px] sm:min-w-[145px] ${
-                          isWon
-                            ? "bg-emerald-500/20 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.3)] animate-bounce"
-                            : "bg-zinc-900/80 border-dashed border-zinc-700"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full mb-1 text-[10px] font-mono px-1">
-                          <span className="text-amber-400 font-bold flex items-center gap-1">
-                            <Target size={11} /> {lang === "cs" ? "CÍL" : "TARGET"}
-                          </span>
-                        </div>
-                        <div className="flex gap-1">
+                    // Goal Word in Tier 0
+                    if (isGoalRow && c === (activeNode?.col ?? 0)) {
+                      return (
+                        <div
+                          key={`goal-word-${c}`}
+                          className={`flex items-center gap-1 p-1.5 rounded-lg border ${
+                            isWon
+                              ? "bg-emerald-950 border-emerald-400 shadow animate-bounce"
+                              : "bg-zinc-900 border-2 border-dashed border-zinc-700"
+                          }`}
+                        >
                           {targetWord.split("").map((ch, i) => (
                             <div
-                              key={`target-char-${i}`}
-                              className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-sm sm:text-base rounded-lg ${
+                              key={`target-c-${i}`}
+                              className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono ${
                                 isWon
-                                  ? "bg-emerald-500/30 text-emerald-200 border border-emerald-400"
-                                  : "bg-zinc-950 text-zinc-400 border border-zinc-800"
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-zinc-800 text-zinc-300"
                               }`}
                             >
                               {ch}
                             </div>
                           ))}
                         </div>
+                      );
+                    }
+
+                    // Word Card in this Cell
+                    if (node) {
+                      return (
+                        <React.Fragment key={`node-cell-${node.word}-${c}-${r}`}>
+                          <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.2 }}
+                            className={`flex flex-col items-center p-1.5 rounded-lg border transition-all ${
+                              node.isLatest
+                                ? "bg-zinc-900 border-2 border-amber-400 shadow-md ring-2 ring-amber-400/20"
+                                : node.isStart
+                                ? "bg-zinc-900 border-2 border-emerald-600/70"
+                                : "bg-zinc-900 border-2 border-zinc-700"
+                            }`}
+                          >
+                            {/* Wordle-style 4 Letter Tiles */}
+                            <div className="flex gap-1">
+                              {node.word.split("").map((ch, i) => {
+                                const isChanged = node.changedIndex === i && !node.isStart;
+                                return (
+                                  <div
+                                    key={`tile-${node.word}-${i}`}
+                                    className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono transition-colors ${
+                                      node.isStart
+                                        ? "bg-emerald-700/40 text-emerald-200 border border-emerald-500/40"
+                                        : isChanged
+                                        ? "bg-amber-500 text-zinc-950 font-extrabold"
+                                        : "bg-zinc-800 text-white border border-zinc-700"
+                                    }`}
+                                  >
+                                    {ch}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+
+                          {/* Horizontal Arrow to Right Sibling */}
+                          {hasRightSibling && (
+                            <div className="flex items-center text-amber-400 font-bold px-0.5">
+                              <ArrowRight size={16} />
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    }
+
+                    // Empty spacer slot to keep column alignment
+                    return (
+                      <div
+                        key={`empty-cell-${c}-${r}`}
+                        className="w-[148px] sm:w-[164px] shrink-0"
+                        aria-hidden="true"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Vertical Connector Arrow between Row r and Row r-1 */}
+              {r > 0 && (
+                <div className="w-full flex items-center gap-2 px-3 py-0.5">
+                  {Array.from({ length: maxCol + 1 }).map((_, c) => {
+                    const vertType = verticalConnectors.get(`${c},${r}`);
+                    return (
+                      <div
+                        key={`vert-conn-${c}-${r}`}
+                        className="w-[148px] sm:w-[164px] flex items-center justify-center shrink-0 h-4 text-xs font-bold font-mono"
+                      >
+                        {vertType === "down" ? (
+                          <div className="flex items-center gap-0.5 text-emerald-400 animate-pulse">
+                            <ArrowDown size={14} />
+                            <span className="text-[10px]">-1</span>
+                          </div>
+                        ) : vertType === "up" ? (
+                          <div className="flex items-center gap-0.5 text-rose-400">
+                            <ArrowUp size={14} />
+                            <span className="text-[10px]">+1</span>
+                          </div>
+                        ) : null}
                       </div>
                     );
-                  }
-
-                  // If there is a Word Node at this (c, r) coordinate
-                  if (node) {
-                    const isStartOnly = node.isStart && node.stepIndices.length === 1;
-                    const stepLabel = node.stepIndices
-                      .map((idx) => (idx === 0 ? "START" : `#${idx}`))
-                      .join(", ");
-
-                    return (
-                      <motion.div
-                        key={`node-${node.word}-${c}-${r}`}
-                        layout
-                        initial={{ opacity: 0, scale: 0.85 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.25 }}
-                        className={`relative flex flex-col items-center p-2 rounded-xl border transition-all min-w-[130px] sm:min-w-[145px] ${
-                          node.isLatest
-                            ? "bg-amber-950/50 border-2 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.4)] ring-4 ring-amber-400/25 z-20"
-                            : isStartOnly
-                            ? "bg-emerald-950/40 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                            : "bg-zinc-800/80 border-zinc-700"
-                        }`}
-                      >
-                        {/* Active Current Pill Tag */}
-                        {node.isLatest && (
-                          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-zinc-950 text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow">
-                            {lang === "cs" ? "Aktuální" : "Current"}
-                          </div>
-                        )}
-
-                        {/* Step Tag & Direction Badge */}
-                        <div className="flex items-center justify-between w-full mb-1 text-[10px] font-mono px-1">
-                          <span className="text-zinc-300 font-bold">{stepLabel}</span>
-
-                          {node.latestStepIndex > 0 && (
-                            <span
-                              className={`flex items-center gap-0.5 font-bold ${
-                                node.delta < 0
-                                  ? "text-emerald-400"
-                                  : node.delta === 0
-                                  ? "text-amber-400"
-                                  : "text-rose-400"
-                              }`}
-                            >
-                              {node.delta < 0 ? (
-                                <>
-                                  <ArrowDown size={11} />
-                                  <span>-1</span>
-                                </>
-                              ) : node.delta === 0 ? (
-                                <>
-                                  <ArrowRight size={11} />
-                                  <span>=</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ArrowUp size={11} />
-                                  <span>+1</span>
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* 4 Letter Tiles */}
-                        <div className="flex gap-1">
-                          {node.word.split("").map((ch, i) => {
-                            const isChanged = node.changedIndex === i && !isStartOnly;
-                            return (
-                              <div
-                                key={`letter-${node.word}-${i}`}
-                                className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center font-bold text-sm sm:text-base rounded-lg ${
-                                  node.isLatest
-                                    ? "bg-amber-500/25 text-amber-200 border-2 border-amber-400 font-extrabold"
-                                    : isStartOnly
-                                    ? "bg-zinc-900 text-emerald-300 border border-emerald-500/40"
-                                    : isChanged
-                                    ? "bg-amber-500/20 text-amber-300 border border-amber-400 shadow"
-                                    : "bg-zinc-900/90 text-zinc-100 border border-zinc-700/80"
-                                }`}
-                              >
-                                {ch}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    );
-                  }
-
-                  // Empty Slot Spacer: Maintains column vertical alignment across all tiers!
-                  return (
-                    <div
-                      key={`empty-slot-${c}-${r}`}
-                      className="min-w-[130px] sm:min-w-[145px] h-12 sm:h-14 border border-dashed border-zinc-900/60 rounded-xl flex items-center justify-center text-[10px] text-zinc-700/50 font-mono"
-                    >
-                      ·
-                    </div>
-                  );
-                })}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
         <div ref={scrollEndRef} />
       </div>
 
-      {/* Active Input Bar & Mobile Native Keyboard Input */}
+      {/* Wordle-Style Active Input Bar */}
       {!isWon && (
-        <div className="w-full mt-3 flex flex-col items-center bg-zinc-900/95 border border-zinc-800 rounded-2xl p-3 sm:p-4 shadow-xl">
-          <div className="flex items-center justify-between w-full max-w-[320px] mb-1.5 px-1">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles size={14} />
-              {lang === "cs" ? "Tvůj další tah" : "Your Next Move"}
+        <div className="w-full mt-3 flex flex-col items-center bg-zinc-900 border border-zinc-800 rounded-xl p-3 shadow-lg">
+          <div className="flex items-center justify-between w-full max-w-[280px] mb-2 text-xs font-mono text-zinc-400">
+            <span className="font-bold text-amber-400 uppercase">
+              {lang === "cs" ? "Tvůj tah" : "Your Move"}
             </span>
-            <span className="text-[11px] text-zinc-400 font-mono">
-              from <span className="font-bold text-zinc-200">{path[path.length - 1]}</span>
+            <span>
+              from: <span className="font-bold text-white">{path[path.length - 1]}</span>
             </span>
           </div>
 
-          {/* 4 Interactive Letter Slots & Hidden Real Native Input */}
-          <div className="relative w-full max-w-[320px] flex items-center justify-center gap-2">
-            {/* Real HTML Input for Mobile Native Keyboard */}
+          {/* 4 Wordle Input Boxes & Transparent Native Input */}
+          <div className="relative w-full max-w-[280px] flex items-center justify-center gap-2">
             <input
               ref={inputRef}
               type="text"
@@ -495,10 +488,10 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
               aria-label="Enter 4-letter guess"
             />
 
-            {/* Visual 4-Letter Display Tiles */}
+            {/* Wordle-style 4 Large Tile Squares */}
             <motion.div
-              animate={shakeRow ? { x: [-8, 8, -6, 6, -3, 3, 0] } : {}}
-              transition={{ duration: 0.35 }}
+              animate={shakeRow ? { x: [-6, 6, -4, 4, -2, 2, 0] } : {}}
+              transition={{ duration: 0.3 }}
               className="flex gap-2 flex-1 justify-center"
             >
               {[0, 1, 2, 3].map((i) => {
@@ -510,15 +503,15 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 
                 return (
                   <div
-                    key={`input-slot-${i}`}
-                    className={`w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center font-bold text-xl sm:text-2xl rounded-xl transition-all ${
+                    key={`wordle-input-${i}`}
+                    className={`w-12 h-12 sm:w-13 sm:h-13 flex items-center justify-center font-bold text-xl rounded-md font-mono transition-all ${
                       char
                         ? isDifferent
-                          ? "bg-amber-500/25 text-amber-200 border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.3)]"
-                          : "bg-zinc-800 text-zinc-100 border-2 border-zinc-600"
+                          ? "bg-amber-500/20 text-amber-300 border-2 border-amber-400"
+                          : "bg-zinc-800 text-white border-2 border-zinc-600"
                         : isCurrentCursor
-                        ? "bg-zinc-900 text-zinc-400 border-2 border-amber-400 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.2)]"
-                        : "bg-zinc-950 text-zinc-600 border border-zinc-800"
+                        ? "bg-zinc-900 text-zinc-400 border-2 border-amber-400 animate-pulse"
+                        : "bg-zinc-950 text-zinc-600 border-2 border-zinc-800"
                     }`}
                   >
                     {char}
@@ -532,39 +525,39 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
               type="button"
               onClick={onSubmitGuess}
               disabled={currentInput.length !== 4}
-              className="h-12 sm:h-14 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:hover:bg-emerald-600 font-bold text-white transition flex items-center justify-center gap-1 shadow cursor-pointer"
+              className="h-12 sm:h-13 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 font-bold text-white transition flex items-center justify-center cursor-pointer"
               title="Submit Word"
             >
               <CornerDownLeft size={18} />
             </button>
           </div>
 
-          {/* Real-time Distance Preview or Error Message */}
-          <div className="h-6 mt-2 flex items-center justify-center">
+          {/* Validation Status Preview */}
+          <div className="h-6 mt-1.5 flex items-center justify-center text-xs font-mono">
             <AnimatePresence mode="wait">
               {errorMessage ? (
                 <motion.div
                   key="err"
-                  initial={{ opacity: 0, y: -4 }}
+                  initial={{ opacity: 0, y: -2 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="text-xs font-semibold text-rose-400 bg-rose-950/80 border border-rose-800/80 px-3 py-0.5 rounded-full"
+                  className="font-bold text-rose-400 bg-rose-950/80 border border-rose-800 px-2.5 py-0.5 rounded"
                 >
                   {errorMessage}
                 </motion.div>
               ) : inputPreview ? (
                 <motion.div
                   key="prev"
-                  initial={{ opacity: 0, y: -4 }}
+                  initial={{ opacity: 0, y: -2 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`text-xs font-semibold px-3 py-0.5 rounded-full border ${
+                  className={`font-bold px-2.5 py-0.5 rounded border ${
                     inputPreview.status === "closer"
-                      ? "text-emerald-300 bg-emerald-950/70 border-emerald-700/70"
+                      ? "text-emerald-300 bg-emerald-950/80 border-emerald-700"
                       : inputPreview.status === "neutral"
-                      ? "text-amber-300 bg-amber-950/70 border-amber-700/70"
+                      ? "text-amber-300 bg-amber-950/80 border-amber-700"
                       : inputPreview.status === "farther"
-                      ? "text-rose-300 bg-rose-950/70 border-rose-700/70"
+                      ? "text-rose-300 bg-rose-950/80 border-rose-700"
                       : "text-zinc-400 bg-zinc-950 border-zinc-800"
                   }`}
                 >
@@ -572,7 +565,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                 </motion.div>
               ) : (
                 <span className="text-[11px] text-zinc-500">
-                  {lang === "cs" ? "Klepnutím otevři klávesnici v mobilu" : "Tap to open mobile keyboard & type"}
+                  {lang === "cs" ? "Klepnutím piš na klávesnici" : "Tap to type on keyboard"}
                 </span>
               )}
             </AnimatePresence>
