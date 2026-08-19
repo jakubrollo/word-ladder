@@ -58,8 +58,8 @@ export const WinModal: React.FC<WinModalProps> = ({
 
         {/* Celebration Header */}
         <div className="text-center mb-5">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/20 text-3xl mb-3 shadow-[0_0_24px_rgba(245,158,11,0.3)] animate-bounce">
-            🎯
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-500/20 text-3xl mb-3 shadow-[0_0_24px_rgba(245,158,11,0.3)] animate-bounce text-amber-400">
+            🏆
           </div>
           <h2 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500">
             {lang === "cs" ? "Úspěšně vyřešeno!" : "Ladder Completed!"}

@@ -343,8 +343,8 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                     >
                       {isGoalRow
                         ? lang === "cs"
-                          ? "CÍL (0 kroků) 🎯"
-                          : "GOAL (0 steps) 🎯"
+                          ? "CÍL (0 kroků)"
+                          : "GOAL (0 steps)"
                         : lang === "cs"
                         ? `${r} kroků k cíli`
                         : `${r} steps to goal`}

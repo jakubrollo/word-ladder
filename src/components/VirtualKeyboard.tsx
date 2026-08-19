@@ -37,11 +37,11 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto px-1 sm:px-2 pt-1 pb-3 select-none">
+    <div className="w-full max-w-lg mx-auto px-1 sm:px-2 pt-1 pb-3 select-none touch-manipulation">
       <div className="flex flex-col gap-1.5 items-center">
         {/* Czech Diacritics Row */}
         {lang === "cs" && (
-          <div className="flex gap-1 w-full justify-center overflow-x-auto py-0.5 scrollbar-none">
+          <div className="flex gap-1 w-full justify-center overflow-x-auto py-0.5 scrollbar-none px-1">
             {CZECH_ACCENTS_ROW.map((key) => {
               const isTargetChar = targetChars.has(key);
               return (
@@ -49,7 +49,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                   key={`cz-${key}`}
                   type="button"
                   onClick={() => handleClick(key)}
-                  className={`h-9 px-2 min-w-[28px] sm:min-w-[32px] flex items-center justify-center font-bold text-xs sm:text-sm rounded-md active:scale-95 transition-all cursor-pointer ${
+                  className={`h-9 px-1.5 sm:px-2 min-w-[24px] sm:min-w-[32px] flex items-center justify-center font-bold text-xs sm:text-sm rounded-md active:scale-95 transition-all cursor-pointer select-none touch-manipulation ${
                     isTargetChar
                       ? "bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50"
                       : "bg-zinc-800/90 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/60"
@@ -72,7 +72,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     key={key}
                     type="button"
                     onClick={() => handleClick(key)}
-                    className="flex-[1.5] h-11 sm:h-12 flex items-center justify-center font-bold text-xs sm:text-sm rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow transition-all cursor-pointer"
+                    className="flex-[1.5] h-11 sm:h-12 flex items-center justify-center font-bold text-xs sm:text-sm rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow transition-all cursor-pointer select-none touch-manipulation"
                     aria-label="Enter guess"
                   >
                     <span className="hidden sm:inline">ENTER</span>
@@ -87,7 +87,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                     key={key}
                     type="button"
                     onClick={() => handleClick(key)}
-                    className="flex-[1.5] h-11 sm:h-12 flex items-center justify-center font-bold rounded-lg bg-zinc-700 hover:bg-zinc-600 active:scale-95 text-zinc-200 shadow transition-all cursor-pointer"
+                    className="flex-[1.5] h-11 sm:h-12 flex items-center justify-center font-bold rounded-lg bg-zinc-700 hover:bg-zinc-600 active:scale-95 text-zinc-200 shadow transition-all cursor-pointer select-none touch-manipulation"
                     aria-label="Backspace"
                   >
                     <Delete size={18} />
@@ -102,7 +102,7 @@ export const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({
                   key={key}
                   type="button"
                   onClick={() => handleClick(key)}
-                  className={`flex-1 h-11 sm:h-12 flex items-center justify-center font-semibold text-base sm:text-lg rounded-lg active:scale-95 transition-all cursor-pointer ${
+                  className={`flex-1 h-11 sm:h-12 flex items-center justify-center font-semibold text-base sm:text-lg rounded-lg active:scale-95 transition-all cursor-pointer select-none touch-manipulation ${
                     isTargetChar
                       ? "bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/40"
                       : "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700/60"

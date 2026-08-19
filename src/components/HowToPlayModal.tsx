@@ -23,7 +23,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ isOpen, onClose,
         </button>
 
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-2xl">🎯</span>
+          <Sparkles size={22} className="text-amber-400" />
           <h2 className="text-xl font-bold text-amber-400">
             {lang === "cs" ? "Jak hrát Word Ladder" : "How to Play Word Ladder"}
           </h2>

@@ -384,83 +384,87 @@ export default function App() {
       />
 
       {/* Top Navbar */}
-      <header className="w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-6 py-2.5 flex items-center justify-between">
+      <header className="w-full border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md sticky top-0 z-30 px-2.5 sm:px-6 py-2 flex items-center justify-between gap-1.5 touch-manipulation">
         {/* Left: Back to Portfolio */}
         <a
           href="https://jakubrollo.github.io/"
-          className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/80 border border-transparent hover:border-zinc-700"
+          className="flex items-center gap-1 text-xs font-semibold text-zinc-400 hover:text-white transition px-2 py-1.5 rounded-lg hover:bg-zinc-800/80 border border-transparent hover:border-zinc-700 shrink-0"
+          title={lang === "cs" ? "Zpět na portfolio" : "Portfolio"}
         >
-          <ArrowLeft size={15} />
-          <span className="hidden sm:inline">{lang === "cs" ? "Zpět na portfolio" : "Return to Orbit"}</span>
+          <ArrowLeft size={16} />
+          <span className="hidden md:inline">{lang === "cs" ? "Portfolio" : "Portfolio"}</span>
         </a>
 
         {/* Center: Brand & Mode Badges */}
-        <div className="flex flex-col items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🎯</span>
-            <h1 className="font-extrabold tracking-wider text-base sm:text-lg text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500">
+        <div className="flex flex-col items-center min-w-0 flex-1 px-1">
+          <div className="flex items-center gap-1.5">
+            <h1 className="font-extrabold tracking-wider text-sm sm:text-base text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500 truncate">
               WORD LADDER
             </h1>
-            <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
-              GRAPH ELEVATION
+            <span className="hidden sm:inline-block text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded">
+              GRAPH
             </span>
           </div>
 
-          <div className="text-[10px] text-zinc-400 font-mono flex items-center gap-1 mt-0.5">
+          <div className="text-[10px] text-zinc-400 font-mono truncate max-w-full">
             {mode === "daily" && (
               <span>
-                {lang === "cs" ? "Denní výzva" : "Daily Challenge"} #{puzzle.puzzleNumber}: {puzzle.startWord} ➔ {puzzle.targetWord}
+                {lang === "cs" ? "Denní" : "Daily"} #{puzzle.puzzleNumber}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
               </span>
             )}
             {mode === "unlimited" && (
               <span>
-                {lang === "cs" ? "Trénink" : "Unlimited"}: {puzzle.startWord} ➔ {puzzle.targetWord}
+                {lang === "cs" ? "Trénink" : "Practice"}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
               </span>
             )}
-            {mode === "custom" && <span>{lang === "cs" ? "Vlastní výzva" : "Custom Game"}</span>}
+            {mode === "custom" && (
+              <span>
+                {lang === "cs" ? "Vlastní" : "Custom"}: <span className="text-white font-bold">{puzzle.startWord}</span> ➔ <span className="text-amber-400 font-bold">{puzzle.targetWord}</span>
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Right: Actions & Segmented Lang */}
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           <button
             type="button"
             onClick={toggleSound}
-            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer touch-manipulation"
             aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
             title={soundEnabled ? "Mute" : "Unmute"}
           >
-            {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
 
           <button
             type="button"
             onClick={() => setShowHowToPlay(true)}
-            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer touch-manipulation"
             aria-label="How to play"
             title="How to Play"
           >
-            <HelpCircle size={18} />
+            <HelpCircle size={16} />
           </button>
 
           <button
             type="button"
             onClick={() => setShowStats(true)}
-            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer touch-manipulation"
             aria-label="Statistics"
             title="Stats"
           >
-            <Trophy size={18} />
+            <Trophy size={16} />
           </button>
 
-          {/* Explicit Segmented Lang Switcher */}
-          <div className="flex items-center bg-zinc-900 border border-zinc-700/80 rounded-lg p-0.5 text-xs font-mono font-bold">
+          {/* Segmented Lang Switcher - Mobile optimized */}
+          <div className="flex items-center bg-zinc-900 border border-zinc-700/80 rounded-md p-0.5 text-[11px] font-mono font-bold">
             <button
               type="button"
               onClick={() => setLang("cs")}
-              className={`px-2 py-1 rounded transition cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded transition cursor-pointer touch-manipulation ${
                 lang === "cs"
-                  ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
               title="Čeština"
@@ -470,9 +474,9 @@ export default function App() {
             <button
               type="button"
               onClick={() => setLang("en")}
-              className={`px-2 py-1 rounded transition cursor-pointer ${
+              className={`px-1.5 py-0.5 rounded transition cursor-pointer touch-manipulation ${
                 lang === "en"
-                  ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                  ? "bg-amber-500 text-zinc-950 font-bold shadow-sm"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
               title="English"
@@ -615,18 +619,18 @@ export default function App() {
       </main>
 
       {/* Control Buttons (Undo / Hint / Reset / Keyboard Toggle) & Keyboard */}
-      <footer className="w-full bg-zinc-950/80 border-t border-zinc-800/80 pt-1.5 pb-2">
+      <footer className="w-full bg-zinc-950/90 border-t border-zinc-800/80 pt-1.5 pb-2 touch-manipulation">
         {/* QoL Helper Buttons */}
-        <div className="w-full max-w-xl mx-auto px-4 flex items-center justify-between mb-1.5 text-xs text-zinc-400">
-          <div className="flex items-center gap-2">
+        <div className="w-full max-w-xl mx-auto px-3 flex items-center justify-between mb-1.5 text-xs text-zinc-400 gap-1">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={handleUndo}
               disabled={isWon || path.length <= 1}
-              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer touch-manipulation"
               title="Undo last move"
             >
-              <Undo2 size={14} />
+              <Undo2 size={13} />
               <span>{lang === "cs" ? "Zpět" : "Undo"}</span>
             </button>
 
@@ -634,10 +638,10 @@ export default function App() {
               type="button"
               onClick={handleHint}
               disabled={isWon}
-              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-800/60 text-amber-300 transition cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 disabled:opacity-30 disabled:cursor-not-allowed border border-amber-800/60 text-amber-300 transition cursor-pointer touch-manipulation"
               title="Get optimal next hint"
             >
-              <Lightbulb size={14} className="text-amber-400" />
+              <Lightbulb size={13} className="text-amber-400" />
               <span>{lang === "cs" ? "Nápověda" : "Hint"}</span>
             </button>
 
@@ -645,10 +649,10 @@ export default function App() {
               type="button"
               onClick={handleRestart}
               disabled={isWon || path.length <= 1}
-              className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer touch-manipulation"
               title="Restart puzzle"
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={13} />
               <span>{lang === "cs" ? "Restart" : "Reset"}</span>
             </button>
           </div>
@@ -657,18 +661,18 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowVirtualKeyboard((prev) => !prev)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] text-zinc-400 hover:text-zinc-200 transition cursor-pointer touch-manipulation"
             title={showVirtualKeyboard ? "Use native phone keyboard" : "Show on-screen keyboard"}
           >
             {showVirtualKeyboard ? <Smartphone size={13} className="text-emerald-400" /> : <Keyboard size={13} />}
-            <span className="hidden sm:inline">
+            <span>
               {showVirtualKeyboard
                 ? lang === "cs"
-                  ? "Klávesnice telefonu"
-                  : "Phone Keyboard"
+                  ? "Klávesnice"
+                  : "Native Keys"
                 : lang === "cs"
-                ? "Virtuální klávesnice"
-                : "On-Screen Keys"}
+                ? "Tlačítka"
+                : "On-Screen"}
             </span>
           </button>
         </div>
