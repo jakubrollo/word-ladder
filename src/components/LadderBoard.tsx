@@ -19,6 +19,16 @@ interface LadderBoardProps {
   lang?: "en" | "cs";
 }
 
+interface TierWordNode {
+  word: string;
+  isStart: boolean;
+  isLatest: boolean;
+  stepIndices: number[];
+  latestStepIndex: number;
+  latestDelta: number;
+  changedIndex: number;
+}
+
 export const LadderBoard: React.FC<LadderBoardProps> = ({
   startWord,
   targetWord,
@@ -35,7 +45,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   const scrollEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Compute step distance metrics for every word in path
+  // Compute step distance metrics for every step in path
   const stepsInfo = useMemo(() => {
     return getPathDistanceInfo(path, targetWord);
   }, [path, targetWord]);
@@ -43,6 +53,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   // Current active word & distance
   const currentStep = stepsInfo[stepsInfo.length - 1];
   const currentDist = currentStep ? currentStep.distance : par;
+  const currentActiveWord = path[path.length - 1];
 
   // Real-time preview of user's active 4-letter input
   const inputPreview = useMemo(() => {
@@ -86,25 +97,58 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     return Math.max(highestInPath, 4);
   }, [stepsInfo, par]);
 
-  // Group steps by their distance tier
+  // Group steps by their distance tier, deduplicating words on the same level
   const tiers = useMemo(() => {
     const tierList: Array<{
       dist: number;
-      steps: typeof stepsInfo;
+      uniqueWords: TierWordNode[];
       isGoal: boolean;
     }> = [];
 
     for (let d = maxTier; d >= 0; d--) {
-      const stepsAtThisTier = stepsInfo.filter((s) => s.distance === d);
+      const wordsMap = new Map<string, TierWordNode>();
+
+      for (const step of stepsInfo) {
+        if (step.distance === d) {
+          const existing = wordsMap.get(step.word);
+          const isLatestStep = step.stepIndex === path.length - 1 && !isWon;
+
+          if (!existing) {
+            wordsMap.set(step.word, {
+              word: step.word,
+              isStart: step.stepIndex === 0,
+              isLatest: isLatestStep,
+              stepIndices: [step.stepIndex],
+              latestStepIndex: step.stepIndex,
+              latestDelta: step.delta,
+              changedIndex: step.changedIndex,
+            });
+          } else {
+            existing.stepIndices.push(step.stepIndex);
+            existing.latestStepIndex = step.stepIndex;
+            existing.latestDelta = step.delta;
+            existing.changedIndex = step.changedIndex;
+            if (isLatestStep) {
+              existing.isLatest = true;
+            }
+          }
+        }
+      }
+
+      // Re-verify isLatest against current active word
+      for (const node of wordsMap.values()) {
+        node.isLatest = node.word === currentActiveWord && !isWon && node.latestStepIndex === path.length - 1;
+      }
+
       tierList.push({
         dist: d,
-        steps: stepsAtThisTier,
+        uniqueWords: Array.from(wordsMap.values()),
         isGoal: d === 0,
       });
     }
 
     return tierList;
-  }, [maxTier, stepsInfo]);
+  }, [currentActiveWord, isWon, maxTier, path.length, stepsInfo]);
 
   // Auto focus native input when user taps board or mounts
   const handleBoardClick = () => {
@@ -134,13 +178,15 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
         </div>
         <div className="flex items-center gap-1.5 font-mono text-xs">
           <span className="text-zinc-400">{lang === "cs" ? "Vzdálenost k cíli:" : "To Goal:"}</span>
-          <span className={`font-bold px-2 py-0.5 rounded-full ${
-            currentDist === 0
-              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-              : currentDist <= 2
-              ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-              : "bg-zinc-800 text-zinc-300 border border-zinc-700"
-          }`}>
+          <span
+            className={`font-bold px-2 py-0.5 rounded-full ${
+              currentDist === 0
+                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                : currentDist <= 2
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                : "bg-zinc-800 text-zinc-300 border border-zinc-700"
+            }`}
+          >
             {currentDist} {lang === "cs" ? "kroků" : "steps"}
           </span>
         </div>
@@ -150,7 +196,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       <div className="w-full max-h-[46vh] sm:max-h-[50vh] overflow-y-auto pr-1 flex flex-col gap-2.5 scrollbar-thin scrollbar-thumb-zinc-700">
         {tiers.map((tier) => {
           const isCurrentActiveTier = currentDist === tier.dist && !isWon;
-          const hasSteps = tier.steps.length > 0;
+          const hasWords = tier.uniqueWords.length > 0;
           const isGoalTier = tier.isGoal;
 
           return (
@@ -163,7 +209,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                     : "bg-zinc-950/80 border-amber-500/30"
                   : isCurrentActiveTier
                   ? "bg-zinc-900/90 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
-                  : hasSteps
+                  : hasWords
                   ? "bg-zinc-900/60 border-zinc-800/80"
                   : "bg-zinc-950/30 border-zinc-900 opacity-60"
               }`}
@@ -197,57 +243,55 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                 </div>
 
                 <span className="text-[10px] text-zinc-500 font-mono">
-                  {tier.steps.length} {tier.steps.length === 1 ? "word" : "words"}
+                  {tier.uniqueWords.length} {tier.uniqueWords.length === 1 ? "word" : "words"}
                 </span>
               </div>
 
-              {/* Words placed in this elevation tier */}
+              {/* Unique words placed in this elevation tier */}
               <div className="flex flex-wrap items-center gap-3">
-                {/* Regular intermediate or start steps */}
-                {tier.steps.map((step) => {
-                  const isStart = step.stepIndex === 0;
-                  const isLatest = step.stepIndex === path.length - 1 && !isWon;
+                {tier.uniqueWords.map((node) => {
+                  const isStartOnly = node.isStart && node.stepIndices.length === 1;
+
+                  // Label display e.g. "START", "#1", or "START, #2"
+                  const stepLabel = node.stepIndices
+                    .map((idx) => (idx === 0 ? "START" : `#${idx}`))
+                    .join(", ");
 
                   return (
                     <motion.div
-                      key={`step-${step.stepIndex}-${step.word}`}
-                      initial={{ opacity: 0, scale: 0.85, y: step.delta < 0 ? -12 : step.delta > 0 ? 12 : 0 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
+                      key={`tier-${tier.dist}-${node.word}`}
+                      layout
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.25 }}
                       className={`flex flex-col items-center p-2 rounded-xl border transition-all ${
-                        isStart
+                        isStartOnly
                           ? "bg-emerald-950/40 border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                          : isLatest
-                          ? "bg-amber-950/30 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.25)]"
+                          : node.isLatest
+                          ? "bg-amber-950/40 border-2 border-amber-400 shadow-[0_0_16px_rgba(245,158,11,0.3)] animate-pulse"
                           : "bg-zinc-800/80 border-zinc-700"
                       }`}
                     >
                       {/* Step Tag & Direction Badge */}
                       <div className="flex items-center justify-between w-full mb-1 text-[10px] font-mono px-1">
-                        <span className="text-zinc-400 font-semibold">
-                          {isStart ? (
-                            <span className="text-emerald-400">START</span>
-                          ) : (
-                            `#${step.stepIndex}`
-                          )}
-                        </span>
+                        <span className="text-zinc-300 font-bold">{stepLabel}</span>
 
-                        {!isStart && (
+                        {node.latestStepIndex > 0 && (
                           <span
                             className={`flex items-center gap-0.5 font-bold ${
-                              step.delta < 0
+                              node.latestDelta < 0
                                 ? "text-emerald-400"
-                                : step.delta === 0
+                                : node.latestDelta === 0
                                 ? "text-amber-400"
                                 : "text-rose-400"
                             }`}
                           >
-                            {step.delta < 0 ? (
+                            {node.latestDelta < 0 ? (
                               <>
                                 <ArrowDown size={11} />
                                 <span>-1</span>
                               </>
-                            ) : step.delta === 0 ? (
+                            ) : node.latestDelta === 0 ? (
                               <>
                                 <ArrowRight size={11} />
                                 <span>=</span>
@@ -264,13 +308,13 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 
                       {/* 4 Letter Tiles */}
                       <div className="flex gap-1">
-                        {step.word.split("").map((ch, i) => {
-                          const isChanged = step.changedIndex === i;
+                        {node.word.split("").map((ch, i) => {
+                          const isChanged = node.changedIndex === i && !isStartOnly;
                           return (
                             <div
-                              key={`letter-${i}`}
+                              key={`letter-${node.word}-${i}`}
                               className={`w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center font-bold text-base sm:text-lg rounded-lg ${
-                                isStart
+                                isStartOnly
                                   ? "bg-zinc-900 text-emerald-300 border border-emerald-500/40"
                                   : isChanged
                                   ? "bg-amber-500/20 text-amber-300 border border-amber-400 shadow"
@@ -318,7 +362,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
                 )}
 
                 {/* Empty slot placeholder for tiers with no words */}
-                {!hasSteps && !isGoalTier && (
+                {!hasWords && !isGoalTier && (
                   <div className="text-xs text-zinc-600 italic py-1 px-2 font-mono">
                     {lang === "cs" ? "Zatím žádné slovo v této úrovni" : "No words at this level yet"}
                   </div>
