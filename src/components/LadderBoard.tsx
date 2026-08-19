@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { CornerDownLeft, Target } from "lucide-react";
+import { CornerDownLeft, Target, ArrowRight, ArrowDown, ArrowUp, CornerDownRight } from "lucide-react";
 import { VALID_WORDS_SET } from "../logic/wordList";
 import { calculatePar, isOneLetterDiff, getDiffIndex } from "../logic/solver";
 
@@ -30,15 +30,6 @@ interface GridWordNode {
   delta: number;
 }
 
-interface StepEdge {
-  id: string;
-  pathData: string;
-  isLatest: boolean;
-  fromWord: string;
-  toWord: string;
-  stepNumber: number;
-}
-
 export const LadderBoard: React.FC<LadderBoardProps> = ({
   startWord,
   targetWord,
@@ -57,12 +48,10 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   const boardRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const [stepEdges, setStepEdges] = useState<StepEdge[]>([]);
-
   // Compute 2D Grid Layout where:
   // - row = distance to target (Y-axis)
   // - col = branch column (X-axis)
-  const { gridNodes, maxCol, maxRow, activeNode } = useMemo(() => {
+  const { gridNodes, maxCol, maxRow, activeNode, cellMap, connections } = useMemo(() => {
     const nodeMap = new Map<string, GridWordNode>();
     const occupied = new Set<string>(); // "col,row"
     const nodes: GridWordNode[] = [];
@@ -140,11 +129,54 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       if (node.isLatest) currentActive = node;
     }
 
+    // Build cell map
+    const map = new Map<string, GridWordNode>();
+    for (const node of nodes) {
+      map.set(`${node.col},${node.row}`, node);
+    }
+
+    // Build path connections for pure DOM arrows
+    const conns: {
+      isLatest: boolean;
+      type: "horizontal" | "down" | "up";
+      fromCol: number;
+      toCol: number;
+      fromRow: number;
+      toRow: number;
+    }[] = [];
+
+    for (let i = 0; i < path.length - 1; i++) {
+      const fromWord = path[i];
+      const toWord = path[i + 1];
+      if (fromWord === toWord) continue;
+
+      const fromNode = nodeMap.get(fromWord);
+      const toNode = nodeMap.get(toWord);
+      if (!fromNode || !toNode) continue;
+
+      const isLatest = i === path.length - 2 && !isWon;
+
+      let type: "horizontal" | "down" | "up" = "horizontal";
+      if (fromNode.row > toNode.row) type = "down";
+      else if (fromNode.row < toNode.row) type = "up";
+
+      conns.push({
+        isLatest,
+        type,
+        fromCol: fromNode.col,
+        toCol: toNode.col,
+        fromRow: fromNode.row,
+        toRow: toNode.row,
+      });
+    }
+
     return {
       gridNodes: nodes,
       maxCol: currentMaxCol,
       maxRow: currentMaxRow,
       activeNode: currentActive,
+      cellMap: map,
+      connections: conns,
     };
   }, [isWon, par, path, targetWord]);
 
@@ -187,15 +219,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     }
   }, [currentDist, currentInput, lang, path, targetWord]);
 
-  // Fast lookup of node at (col, row)
-  const cellMap = useMemo(() => {
-    const map = new Map<string, GridWordNode>();
-    for (const node of gridNodes) {
-      map.set(`${node.col},${node.row}`, node);
-    }
-    return map;
-  }, [gridNodes]);
-
   // Generate row tiers array from maxRow down to 0
   const rowTiers = useMemo(() => {
     const rows: number[] = [];
@@ -204,89 +227,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     }
     return rows;
   }, [maxRow]);
-
-  // Compute exact SVG directional arrows connecting consecutive steps in path
-  const updateArrows = useCallback(() => {
-    if (!boardRef.current || path.length <= 1) {
-      setStepEdges([]);
-      return;
-    }
-
-    const containerRect = boardRef.current.getBoundingClientRect();
-    const edges: StepEdge[] = [];
-    const pairCounts: Record<string, number> = {};
-
-    for (let i = 0; i < path.length - 1; i++) {
-      const fromWord = path[i];
-      const toWord = path[i + 1];
-      if (fromWord === toWord) continue;
-
-      const fromEl = tileRefs.current[fromWord];
-      const toEl = tileRefs.current[toWord];
-      if (!fromEl || !toEl) continue;
-
-      const fromRect = fromEl.getBoundingClientRect();
-      const toRect = toEl.getBoundingClientRect();
-
-      const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
-      const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
-      const x2 = toRect.left + toRect.width / 2 - containerRect.left;
-      const y2 = toRect.top + toRect.height / 2 - containerRect.top;
-
-      const dx = x2 - x1;
-      const dy = y2 - y1;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      // Trim line so it starts and ends at tile border
-      const trimStart = 20;
-      const trimEnd = 24;
-      const startX = x1 + (dx / dist) * trimStart;
-      const startY = y1 + (dy / dist) * trimStart;
-      const endX = x2 - (dx / dist) * trimEnd;
-      const endY = y2 - (dy / dist) * trimEnd;
-
-      // Count occurrences between pair to curve bidirectional moves
-      const pairKey = [fromWord, toWord].sort().join("<->");
-      pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
-      const count = pairCounts[pairKey];
-
-      let pathData = "";
-      if (count === 1) {
-        // Direct line
-        pathData = `M ${startX} ${startY} L ${endX} ${endY}`;
-      } else {
-        // Curve offset for return/backtracking
-        const midX = (startX + endX) / 2;
-        const midY = (startY + endY) / 2;
-        const perpX = -dy / dist;
-        const perpY = dx / dist;
-        const offset = count % 2 === 0 ? -16 : 16;
-        const ctrlX = midX + perpX * offset;
-        const ctrlY = midY + perpY * offset;
-        pathData = `M ${startX} ${startY} Q ${ctrlX} ${ctrlY} ${endX} ${endY}`;
-      }
-
-      edges.push({
-        id: `step-edge-${i}-${fromWord}->${toWord}`,
-        pathData,
-        isLatest: i === path.length - 2 && !isWon,
-        fromWord,
-        toWord,
-        stepNumber: i + 1,
-      });
-    }
-
-    setStepEdges(edges);
-  }, [isWon, path]);
-
-  useEffect(() => {
-    const timer = setTimeout(updateArrows, 40);
-    window.addEventListener("resize", updateArrows);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", updateArrows);
-    };
-  }, [updateArrows, path, gridNodes]);
 
   // Auto focus native input when user taps board or mounts
   const handleBoardClick = () => {
@@ -299,10 +239,13 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
     scrollEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [path.length]);
 
+  const cellWidthClass = "w-[144px] sm:w-[156px]";
+  const gapWidthClass = "w-6 sm:w-8";
+
   return (
     <div
       onClick={handleBoardClick}
-      className="flex flex-col items-center w-full max-w-xl mx-auto px-2 select-none"
+      className="flex flex-col items-center w-full max-w-2xl mx-auto px-2 select-none"
     >
       {/* Top Status Banner */}
       <div className="flex items-center justify-between w-full mb-3 px-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-300 font-mono">
@@ -358,210 +301,212 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
         </div>
       )}
 
-      {/* 2D Grid Board with SVG Arrows */}
+      {/* 2D Grid Board */}
       <div
         ref={boardRef}
-        className="relative w-full max-h-[48vh] sm:max-h-[52vh] overflow-auto pr-1 flex flex-col items-center gap-3 scrollbar-thin scrollbar-thumb-zinc-700"
+        className="relative w-full max-h-[48vh] sm:max-h-[52vh] overflow-auto pr-1 flex flex-col items-start gap-0 scrollbar-thin scrollbar-thumb-zinc-700"
       >
-        {/* SVG Arrows Layer */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"
-          aria-hidden="true"
-        >
-          <defs>
-            {/* Active move arrowhead */}
-            <marker
-              id="arrow-active"
-              viewBox="0 0 10 10"
-              refX="7"
-              refY="5"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#f59e0b" />
-            </marker>
+        <div className="flex flex-col min-w-max p-2 mx-auto">
+          {rowTiers.map((r, rowIndex) => {
+            const isGoalRow = r === 0;
+            const isCurrentActiveRow = currentDist === r && !isWon;
+            const rowHasNodes = gridNodes.some((n) => n.row === r);
 
-            {/* Past move arrowhead */}
-            <marker
-              id="arrow-past"
-              viewBox="0 0 10 10"
-              refX="7"
-              refY="5"
-              markerWidth="5"
-              markerHeight="5"
-              orient="auto-start-reverse"
-            >
-              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#71717a" />
-            </marker>
-          </defs>
-
-          {/* Render lines between actual consecutive moves */}
-          {stepEdges.map((edge) => (
-            <g key={edge.id}>
-              {edge.isLatest && (
-                <path
-                  d={edge.pathData}
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="5"
-                  strokeOpacity="0.2"
-                  strokeLinecap="round"
-                />
-              )}
-              <path
-                d={edge.pathData}
-                fill="none"
-                stroke={edge.isLatest ? "#f59e0b" : "#71717a"}
-                strokeWidth={edge.isLatest ? 2.5 : 1.8}
-                strokeOpacity={edge.isLatest ? 1 : 0.75}
-                strokeDasharray={edge.isLatest ? undefined : "4 3"}
-                markerEnd={edge.isLatest ? "url(#arrow-active)" : "url(#arrow-past)"}
-              />
-            </g>
-          ))}
-        </svg>
-
-        {/* Row Tiers (Distance levels) */}
-        {rowTiers.map((r) => {
-          const isGoalRow = r === 0;
-          const isCurrentActiveRow = currentDist === r && !isWon;
-          const rowHasNodes = gridNodes.some((n) => n.row === r);
-
-          return (
-            <div
-              key={`tier-row-${r}`}
-              className={`w-full rounded-xl p-2.5 transition-all flex flex-col gap-1 border ${
-                isGoalRow
-                  ? isWon
-                    ? "bg-emerald-950/40 border-emerald-500/60"
-                    : "bg-zinc-900/90 border-amber-500/40"
-                  : isCurrentActiveRow
-                  ? "bg-zinc-900 border-amber-500/50 shadow-sm"
-                  : rowHasNodes
-                  ? "bg-zinc-900/60 border-zinc-800"
-                  : "bg-zinc-950/30 border-zinc-900/60 opacity-40"
-              }`}
-            >
-              {/* Row Header Label */}
-              <div className="flex items-center justify-between text-[11px] font-mono px-1">
-                <span
-                  className={`font-bold uppercase tracking-wider ${
+            return (
+              <React.Fragment key={`tier-group-${r}`}>
+                {/* Main Tier Container */}
+                <div
+                  className={`w-full rounded-xl p-2.5 transition-all flex flex-col gap-2 border ${
                     isGoalRow
-                      ? "text-amber-400"
-                      : r === 1
-                      ? "text-emerald-400"
-                      : "text-zinc-400"
+                      ? isWon
+                        ? "bg-emerald-950/40 border-emerald-500/60"
+                        : "bg-zinc-900/90 border-amber-500/40"
+                      : isCurrentActiveRow
+                      ? "bg-zinc-900 border-amber-500/50 shadow-sm"
+                      : rowHasNodes
+                      ? "bg-zinc-900/60 border-zinc-800"
+                      : "bg-zinc-950/30 border-zinc-900/60 opacity-40"
                   }`}
                 >
-                  {isGoalRow
-                    ? lang === "cs"
-                      ? "CÍL (0 kroků) 🎯"
-                      : "GOAL (0 steps) 🎯"
-                    : lang === "cs"
-                    ? `${r} kroků k cíli`
-                    : `${r} steps to goal`}
-                </span>
+                  {/* Row Header Label */}
+                  <div className="flex items-center justify-between text-[11px] font-mono px-1 mb-1">
+                    <span
+                      className={`font-bold uppercase tracking-wider ${
+                        isGoalRow
+                          ? "text-amber-400"
+                          : r === 1
+                          ? "text-emerald-400"
+                          : "text-zinc-400"
+                      }`}
+                    >
+                      {isGoalRow
+                        ? lang === "cs"
+                          ? "CÍL (0 kroků) 🎯"
+                          : "GOAL (0 steps) 🎯"
+                        : lang === "cs"
+                        ? `${r} kroků k cíli`
+                        : `${r} steps to goal`}
+                    </span>
 
-                {isCurrentActiveRow && (
-                  <span className="text-[10px] font-bold text-amber-400 font-mono">
-                    ◀ {lang === "cs" ? "Zde jsi" : "You are here"}
-                  </span>
-                )}
-              </div>
+                    {isCurrentActiveRow && (
+                      <span className="text-[10px] font-bold text-amber-400 font-mono">
+                        ◀ {lang === "cs" ? "Zde jsi" : "You are here"}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Matrix Columns in this Row */}
-              <div className="flex items-center gap-3 overflow-x-auto py-1">
-                {Array.from({ length: maxCol + 1 }).map((_, c) => {
-                  const node = cellMap.get(`${c},${r}`);
+                  {/* Matrix Columns in this Row */}
+                  <div className="flex items-center">
+                    {Array.from({ length: maxCol + 1 }).map((_, c) => {
+                      const node = cellMap.get(`${c},${r}`);
+                      const hConn = connections.find(
+                        (conn) =>
+                          conn.type === "horizontal" &&
+                          conn.fromRow === r &&
+                          Math.min(conn.fromCol, conn.toCol) <= c &&
+                          Math.max(conn.fromCol, conn.toCol) > c
+                      );
 
-                  // Goal Word in Tier 0
-                  if (isGoalRow && c === (activeNode?.col ?? 0)) {
-                    return (
-                      <div
-                        key={`goal-word-${c}`}
-                        ref={(el) => {
-                          tileRefs.current[targetWord] = el;
-                        }}
-                        className={`flex items-center gap-1 p-1.5 rounded-lg border shrink-0 ${
-                          isWon
-                            ? "bg-emerald-950 border-emerald-400 shadow animate-bounce"
-                            : "bg-zinc-900 border-2 border-dashed border-zinc-700"
-                        }`}
-                      >
-                        {targetWord.split("").map((ch, i) => (
-                          <div
-                            key={`target-c-${i}`}
-                            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono ${
-                              isWon
-                                ? "bg-emerald-600 text-white"
-                                : "bg-zinc-800 text-zinc-300"
-                            }`}
-                          >
-                            {ch}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }
-
-                  // Word Card in this Cell
-                  if (node) {
-                    return (
-                      <motion.div
-                        key={`node-cell-${node.word}-${c}-${r}`}
-                        ref={(el) => {
-                          tileRefs.current[node.word] = el;
-                        }}
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`flex flex-col items-center p-1.5 rounded-lg border shrink-0 transition-all ${
-                          node.isLatest
-                            ? "bg-zinc-900 border-2 border-amber-400 shadow-md ring-2 ring-amber-400/20"
-                            : node.isStart
-                            ? "bg-zinc-900 border-2 border-emerald-600/70"
-                            : "bg-zinc-900 border-2 border-zinc-700"
-                        }`}
-                      >
-                        {/* Wordle-style 4 Letter Tiles */}
-                        <div className="flex gap-1">
-                          {node.word.split("").map((ch, i) => {
-                            const isChanged = node.changedIndex === i && !node.isStart;
-                            return (
+                      return (
+                        <React.Fragment key={`cell-${c}-${r}`}>
+                          <div className={`${cellWidthClass} shrink-0 flex justify-center`}>
+                            {isGoalRow && c === (activeNode?.col ?? 0) ? (
                               <div
-                                key={`tile-${node.word}-${i}`}
-                                className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono transition-colors ${
-                                  node.isStart
-                                    ? "bg-emerald-700/40 text-emerald-200 border border-emerald-500/40"
-                                    : isChanged
-                                    ? "bg-amber-500 text-zinc-950 font-extrabold"
-                                    : "bg-zinc-800 text-white border border-zinc-700"
+                                ref={(el) => {
+                                  tileRefs.current[targetWord] = el;
+                                }}
+                                className={`flex items-center gap-1 p-1.5 rounded-lg border shrink-0 ${
+                                  isWon
+                                    ? "bg-emerald-950 border-emerald-400 shadow animate-bounce"
+                                    : "bg-zinc-900 border-2 border-dashed border-zinc-700"
                                 }`}
                               >
-                                {ch}
+                                {targetWord.split("").map((ch, i) => (
+                                  <div
+                                    key={`target-c-${i}`}
+                                    className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono ${
+                                      isWon ? "bg-emerald-600 text-white" : "bg-zinc-800 text-zinc-300"
+                                    }`}
+                                  >
+                                    {ch}
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </motion.div>
-                    );
-                  }
+                            ) : node ? (
+                              <motion.div
+                                ref={(el) => {
+                                  tileRefs.current[node.word] = el;
+                                }}
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ duration: 0.2 }}
+                                className={`flex flex-col items-center p-1.5 rounded-lg border shrink-0 transition-all ${
+                                  node.isLatest
+                                    ? "bg-zinc-900 border-2 border-amber-400 shadow-md ring-2 ring-amber-400/20"
+                                    : node.isStart
+                                    ? "bg-zinc-900 border-2 border-emerald-600/70"
+                                    : "bg-zinc-900 border-2 border-zinc-700"
+                                }`}
+                              >
+                                <div className="flex gap-1">
+                                  {node.word.split("").map((ch, i) => {
+                                    const isChanged = node.changedIndex === i && !node.isStart;
+                                    return (
+                                      <div
+                                        key={`tile-${node.word}-${i}`}
+                                        className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center font-bold text-base rounded font-mono transition-colors ${
+                                          node.isStart
+                                            ? "bg-emerald-700/40 text-emerald-200 border border-emerald-500/40"
+                                            : isChanged
+                                            ? "bg-amber-500 text-zinc-950 font-extrabold"
+                                            : "bg-zinc-800 text-white border border-zinc-700"
+                                        }`}
+                                      >
+                                        {ch}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            ) : (
+                              <div className="h-10" aria-hidden="true" />
+                            )}
+                          </div>
 
-                  // Empty spacer slot to maintain exact column alignment across all tiers
-                  return (
-                    <div
-                      key={`empty-cell-${c}-${r}`}
-                      className="w-[148px] sm:w-[164px] shrink-0"
-                      aria-hidden="true"
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-        <div ref={scrollEndRef} />
+                          {/* Horizontal Arrow Spacer */}
+                          {c < maxCol && (
+                            <div className={`${gapWidthClass} shrink-0 flex items-center justify-center`}>
+                              {hConn && (
+                                <ArrowRight
+                                  className={hConn.isLatest ? "text-amber-400" : "text-zinc-600"}
+                                  strokeWidth={hConn.isLatest ? 3 : 2}
+                                  size={20}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Vertical Arrow Spacers Row */}
+                {rowIndex < rowTiers.length - 1 && (
+                  <div className="flex items-center w-full py-1 opacity-90">
+                    {Array.from({ length: maxCol + 1 }).map((_, c) => {
+                      const straightDown = connections.find(
+                        (conn) =>
+                          conn.type === "down" &&
+                          conn.fromRow === r &&
+                          conn.toRow === r - 1 &&
+                          conn.fromCol === c &&
+                          conn.toCol === c
+                      );
+                      const straightUp = connections.find(
+                        (conn) =>
+                          conn.type === "up" &&
+                          conn.fromRow === r - 1 &&
+                          conn.toRow === r &&
+                          conn.fromCol === c &&
+                          conn.toCol === c
+                      );
+                      const diagDown = connections.find(
+                        (conn) =>
+                          conn.type === "down" &&
+                          conn.fromRow === r &&
+                          conn.toRow === r - 1 &&
+                          conn.toCol === c &&
+                          conn.fromCol !== c
+                      );
+
+                      const vConn = straightDown || diagDown || straightUp;
+                      let Icon = ArrowDown;
+                      if (straightUp) Icon = ArrowUp;
+                      else if (diagDown) Icon = CornerDownRight;
+
+                      return (
+                        <React.Fragment key={`v-gap-${c}-${r}`}>
+                          <div className={`${cellWidthClass} shrink-0 flex justify-center`}>
+                            {vConn && (
+                              <Icon
+                                className={vConn.isLatest ? "text-amber-400" : "text-zinc-600"}
+                                strokeWidth={vConn.isLatest ? 3 : 2}
+                                size={22}
+                              />
+                            )}
+                          </div>
+                          {c < maxCol && <div className={`${gapWidthClass} shrink-0`} />}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+          <div ref={scrollEndRef} className="h-4" />
+        </div>
       </div>
 
       {/* Wordle-Style Active Input Bar */}
@@ -576,7 +521,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
             </span>
           </div>
 
-          {/* 4 Wordle Input Boxes & Transparent Native Input */}
           <div className="relative w-full max-w-[280px] flex items-center justify-center gap-2">
             <input
               ref={inputRef}
@@ -599,7 +543,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
               aria-label="Enter 4-letter guess"
             />
 
-            {/* Wordle-style 4 Large Tile Squares */}
             <motion.div
               animate={shakeRow ? { x: [-6, 6, -4, 4, -2, 2, 0] } : {}}
               transition={{ duration: 0.3 }}
@@ -631,7 +574,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
               })}
             </motion.div>
 
-            {/* Submit Button */}
             <button
               type="button"
               onClick={onSubmitGuess}
@@ -643,7 +585,6 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
             </button>
           </div>
 
-          {/* Validation Status Preview */}
           <div className="h-6 mt-1.5 flex items-center justify-center text-xs font-mono">
             <AnimatePresence mode="wait">
               {errorMessage ? (
