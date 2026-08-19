@@ -1,0 +1,649 @@
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import {
+  HelpCircle,
+  Trophy,
+  Volume2,
+  VolumeX,
+  Undo2,
+  Lightbulb,
+  RotateCcw,
+  Sparkles,
+  ArrowLeft,
+  Calendar,
+  Infinity as InfinityIcon,
+  Sliders,
+  Compass,
+} from "lucide-react";
+import { LadderBoard } from "./components/LadderBoard";
+import { VirtualKeyboard } from "./components/VirtualKeyboard";
+import { WordVerifier } from "./components/WordVerifier";
+import { HowToPlayModal } from "./components/HowToPlayModal";
+import { StatsModal } from "./components/StatsModal";
+import { WinModal } from "./components/WinModal";
+import { CustomGameModal } from "./components/CustomGameModal";
+import { VALID_WORDS_SET } from "./logic/wordList";
+import { validateGuess, getNextHint } from "./logic/solver";
+import type { GameMode, PuzzleInfo, GameStats } from "./logic/gameState";
+import {
+  getDailyPuzzle,
+  getRandomPuzzle,
+  loadStats,
+  recordGameWin,
+  sounds,
+  getTodayDateString,
+} from "./logic/gameState";
+
+// Mini confetti particle system on canvas
+function launchConfetti(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const particles: Array<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    color: string;
+    rot: number;
+    vRot: number;
+  }> = [];
+
+  const colors = ["#F59E0B", "#10B981", "#3B82F6", "#EC4899", "#8B5CF6", "#FBBF24"];
+
+  for (let i = 0; i < 90; i++) {
+    particles.push({
+      x: canvas.width / 2 + (Math.random() - 0.5) * 100,
+      y: canvas.height * 0.4 + (Math.random() - 0.5) * 50,
+      vx: (Math.random() - 0.5) * 14,
+      vy: (Math.random() - 1.2) * 12,
+      size: Math.random() * 8 + 4,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * 360,
+      vRot: (Math.random() - 0.5) * 10,
+    });
+  }
+
+  let frame = 0;
+  function render() {
+    if (!ctx || !canvas) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.3;
+      p.rot += p.vRot;
+      if (p.y < canvas.height) {
+        alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rot * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        ctx.restore();
+      }
+    }
+
+    frame++;
+    if (alive && frame < 180) {
+      requestAnimationFrame(render);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+
+export default function App() {
+  const [lang, setLang] = useState<"en" | "cs">(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("portfolio-language") as "en" | "cs") || "en";
+    }
+    return "en";
+  });
+
+  const [mode, setMode] = useState<GameMode>("daily");
+  const [puzzle, setPuzzle] = useState<PuzzleInfo>(() => getDailyPuzzle());
+  const [path, setPath] = useState<string[]>([puzzle.startWord]);
+  const [currentInput, setCurrentInput] = useState<string>("");
+  const [isWon, setIsWon] = useState<boolean>(false);
+  const [shakeRow, setShakeRow] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stats, setStats] = useState<GameStats>(() => loadStats());
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [mobileVerifierOpen, setMobileVerifierOpen] = useState<boolean>(false);
+
+  // Modals
+  const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
+  const [showStats, setShowStats] = useState<boolean>(false);
+  const [showWin, setShowWin] = useState<boolean>(false);
+  const [showCustom, setShowCustom] = useState<boolean>(false);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Sync language with portfolio setting
+  useEffect(() => {
+    localStorage.setItem("portfolio-language", lang);
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  // Load / initialize daily game state
+  useEffect(() => {
+    if (mode === "daily") {
+      const todayDaily = getDailyPuzzle();
+      setPuzzle(todayDaily);
+
+      // Check if already won today in stats
+      const todayKey = getTodayDateString();
+      const savedDaily = stats.dailyCompleted[todayKey];
+      if (savedDaily && savedDaily.won && savedDaily.startWord === todayDaily.startWord) {
+        setPath(savedDaily.path);
+        setIsWon(true);
+      } else {
+        setPath([todayDaily.startWord]);
+        setIsWon(false);
+      }
+      setCurrentInput("");
+      setErrorMessage(null);
+    }
+  }, [mode, stats.dailyCompleted]);
+
+  // Handle sound toggle
+  const toggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    sounds.enabled = next;
+  };
+
+  // Switch to Unlimited mode
+  const startUnlimited = useCallback(() => {
+    const nextPuz = getRandomPuzzle(3, 5);
+    setMode("unlimited");
+    setPuzzle(nextPuz);
+    setPath([nextPuz.startWord]);
+    setCurrentInput("");
+    setIsWon(false);
+    setErrorMessage(null);
+    setShowWin(false);
+  }, []);
+
+  // Switch to Daily mode
+  const startDaily = useCallback(() => {
+    const daily = getDailyPuzzle();
+    setMode("daily");
+    setPuzzle(daily);
+
+    const todayKey = getTodayDateString();
+    const saved = stats.dailyCompleted[todayKey];
+    if (saved && saved.won && saved.startWord === daily.startWord) {
+      setPath(saved.path);
+      setIsWon(true);
+    } else {
+      setPath([daily.startWord]);
+      setIsWon(false);
+    }
+    setCurrentInput("");
+    setErrorMessage(null);
+    setShowWin(false);
+  }, [stats.dailyCompleted]);
+
+  // Switch to Custom Puzzle
+  const startCustom = useCallback((customPuz: PuzzleInfo) => {
+    setMode("custom");
+    setPuzzle(customPuz);
+    setPath([customPuz.startWord]);
+    setCurrentInput("");
+    setIsWon(false);
+    setErrorMessage(null);
+    setShowWin(false);
+  }, []);
+
+  // Trigger error shake & toast
+  const triggerError = (msg: string) => {
+    sounds.playError();
+    setErrorMessage(msg);
+    setShakeRow(true);
+    setTimeout(() => setShakeRow(false), 400);
+    setTimeout(() => setErrorMessage(null), 2500);
+  };
+
+  // Submit word guess
+  const playWord = useCallback(
+    (wordToPlay: string) => {
+      if (isWon) return;
+
+      const upper = wordToPlay.toUpperCase().trim();
+      if (upper.length !== 4) {
+        triggerError(lang === "cs" ? "Slovo musí mít 4 písmena!" : "Must be a 4-letter word!");
+        return;
+      }
+
+      const lastWord = path[path.length - 1];
+      const validation = validateGuess(upper, lastWord, path, VALID_WORDS_SET);
+
+      if (!validation.valid) {
+        if (validation.reason === "NOT_IN_DICTIONARY") {
+          triggerError(lang === "cs" ? `'${upper}' není v anglickém slovníku!` : `'${upper}' is not in dictionary!`);
+        } else if (validation.reason === "NOT_ONE_LETTER_DIFF") {
+          triggerError(lang === "cs" ? `Musíš změnit přesně 1 písmeno od '${lastWord}'!` : `Must change exactly 1 letter from '${lastWord}'!`);
+        } else if (validation.reason === "ALREADY_USED") {
+          triggerError(lang === "cs" ? "Toto slovo jsi již v žebříčku použil/a!" : "Word already used in this ladder!");
+        } else {
+          triggerError(lang === "cs" ? "Neplatný tah!" : "Invalid move!");
+        }
+        return;
+      }
+
+      // Valid step!
+      sounds.playStep();
+      const newPath = [...path, upper];
+      setPath(newPath);
+      setCurrentInput("");
+      setErrorMessage(null);
+
+      // Check Win Condition
+      if (upper === puzzle.targetWord) {
+        sounds.playWin();
+        setIsWon(true);
+        launchConfetti(canvasRef.current);
+        const updatedStats = recordGameWin(stats, mode, puzzle, newPath);
+        setStats(updatedStats);
+        setTimeout(() => setShowWin(true), 600);
+      }
+    },
+    [isWon, lang, mode, path, puzzle, stats]
+  );
+
+  // Submit from current typed input
+  const handleEnter = useCallback(() => {
+    playWord(currentInput);
+  }, [currentInput, playWord]);
+
+  // Handle typing letter
+  const handleChar = useCallback(
+    (char: string) => {
+      if (isWon) return;
+      if (currentInput.length < 4) {
+        sounds.playKey();
+        setCurrentInput((prev) => prev + char.toUpperCase());
+        setErrorMessage(null);
+      }
+    },
+    [currentInput.length, isWon]
+  );
+
+  // Handle backspace
+  const handleDelete = useCallback(() => {
+    if (isWon) return;
+    if (currentInput.length > 0) {
+      sounds.playKey();
+      setCurrentInput((prev) => prev.slice(0, -1));
+      setErrorMessage(null);
+    }
+  }, [currentInput.length, isWon]);
+
+  // Undo last step
+  const handleUndo = useCallback(() => {
+    if (isWon || path.length <= 1) return;
+    sounds.playKey();
+    setPath((prev) => prev.slice(0, -1));
+    setCurrentInput("");
+    setErrorMessage(null);
+  }, [isWon, path.length]);
+
+  // Restart current puzzle
+  const handleRestart = useCallback(() => {
+    if (isWon) return;
+    setPath([puzzle.startWord]);
+    setCurrentInput("");
+    setErrorMessage(null);
+  }, [isWon, puzzle.startWord]);
+
+  // Hint button: Provides optimal next step
+  const handleHint = useCallback(() => {
+    if (isWon) return;
+    const currentWord = path[path.length - 1];
+    const hint = getNextHint(currentWord, puzzle.targetWord, VALID_WORDS_SET);
+    if (!hint) {
+      triggerError(lang === "cs" ? "Z této pozice nelze dosáhnout cíle, zkus vrátit krok (Undo)!" : "No path from here, try Undo!");
+      return;
+    }
+
+    setCurrentInput(hint.nextWord);
+    setErrorMessage(
+      lang === "cs"
+        ? `Nápověda: Zkus slovo '${hint.nextWord}' (zbývá ${hint.remainingSteps} kroků do cíle)`
+        : `Hint: Try '${hint.nextWord}' (${hint.remainingSteps} steps to target)`
+    );
+  }, [isWon, lang, path, puzzle.targetWord]);
+
+  // Physical Keyboard Listener
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Don't capture when typing inside the WordVerifier text input
+      const activeTag = (document.activeElement?.tagName || "").toLowerCase();
+      if (activeTag === "input" || activeTag === "textarea") return;
+
+      if (showHowToPlay || showStats || showWin || showCustom) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleEnter();
+      } else if (e.key === "Backspace") {
+        e.preventDefault();
+        handleDelete();
+      } else if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleUndo();
+      } else if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        handleChar(e.key);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleChar, handleDelete, handleEnter, handleUndo, showCustom, showHowToPlay, showStats, showWin]);
+
+  const currentLadderWord = path[path.length - 1];
+
+  return (
+    <div className="min-h-screen bg-[#090b0e] text-zinc-100 flex flex-col justify-between relative overflow-x-hidden font-sans">
+      {/* Confetti Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="fixed inset-0 pointer-events-none z-40"
+        aria-hidden="true"
+      />
+
+      {/* Top Navbar */}
+      <header className="w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-30 px-3 sm:px-6 py-2.5 flex items-center justify-between">
+        {/* Left: Back to Portfolio */}
+        <a
+          href="/"
+          className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400 hover:text-white transition px-2.5 py-1.5 rounded-lg hover:bg-zinc-800/80 border border-transparent hover:border-zinc-700"
+        >
+          <ArrowLeft size={15} />
+          <span className="hidden sm:inline">{lang === "cs" ? "Zpět na portfolio" : "Return to Orbit"}</span>
+        </a>
+
+        {/* Center: Brand & Mode Badges */}
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🎯</span>
+            <h1 className="font-extrabold tracking-wider text-base sm:text-lg text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-400 to-yellow-500">
+              WORD LADDER
+            </h1>
+            <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+              GRAPH PUZZLE
+            </span>
+          </div>
+
+          <div className="text-[10px] text-zinc-400 font-mono flex items-center gap-1 mt-0.5">
+            {mode === "daily" && (
+              <span>
+                {lang === "cs" ? "Denní výzva" : "Daily Challenge"} #{puzzle.puzzleNumber}: {puzzle.startWord} ➔ {puzzle.targetWord}
+              </span>
+            )}
+            {mode === "unlimited" && (
+              <span>
+                {lang === "cs" ? "Trénink" : "Unlimited"}: {puzzle.startWord} ➔ {puzzle.targetWord}
+              </span>
+            )}
+            {mode === "custom" && <span>{lang === "cs" ? "Vlastní výzva" : "Custom Game"}</span>}
+          </div>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            aria-label={soundEnabled ? "Mute sounds" : "Enable sounds"}
+            title={soundEnabled ? "Mute" : "Unmute"}
+          >
+            {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowHowToPlay(true)}
+            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            aria-label="How to play"
+            title="How to Play"
+          >
+            <HelpCircle size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowStats(true)}
+            className="p-1.5 sm:p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            aria-label="Statistics"
+            title="Stats"
+          >
+            <Trophy size={18} />
+          </button>
+
+          {/* Lang switcher */}
+          <button
+            type="button"
+            onClick={() => setLang(lang === "en" ? "cs" : "en")}
+            className="text-xs font-bold px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-amber-400 border border-zinc-700 cursor-pointer"
+          >
+            {lang === "en" ? "CZ" : "EN"}
+          </button>
+        </div>
+      </header>
+
+      {/* Mode Selector Pill Bar */}
+      <div className="w-full max-w-lg mx-auto px-4 pt-2 pb-1 flex items-center justify-center">
+        <div className="flex items-center bg-zinc-950/90 border border-zinc-800 rounded-xl p-1 gap-1 w-full text-xs">
+          <button
+            type="button"
+            onClick={startDaily}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              mode === "daily"
+                ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <Calendar size={13} />
+            <span>{lang === "cs" ? "Denní výzva" : "Daily"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={startUnlimited}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              mode === "unlimited"
+                ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <InfinityIcon size={13} />
+            <span>{lang === "cs" ? "Trénink" : "Unlimited"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCustom(true)}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              mode === "custom"
+                ? "bg-amber-500 text-zinc-950 font-bold shadow"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <Sliders size={13} />
+            <span>{lang === "cs" ? "Vlastní" : "Custom"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Game Layout: Side-by-side on desktop, stacked on mobile */}
+      <main className="flex-1 max-w-5xl mx-auto w-full px-2 sm:px-4 py-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
+        {/* Left / Primary Area: Ladder Board */}
+        <div className="w-full max-w-md flex flex-col items-center">
+          <LadderBoard
+            startWord={puzzle.startWord}
+            targetWord={puzzle.targetWord}
+            path={path}
+            currentInput={currentInput}
+            isWon={isWon}
+            par={puzzle.par}
+            shakeRow={shakeRow}
+            errorMessage={errorMessage}
+          />
+
+          {/* Mobile Verifier Toggle Button */}
+          <div className="lg:hidden w-full px-4 mt-1">
+            <button
+              type="button"
+              onClick={() => setMobileVerifierOpen((prev) => !prev)}
+              className="w-full py-1.5 px-3 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white flex items-center justify-center gap-1.5 transition"
+            >
+              <Compass size={14} className="text-amber-400" />
+              <span>
+                {mobileVerifierOpen
+                  ? lang === "cs"
+                    ? "Skrýt ověřovač slovníku ▲"
+                    : "Hide Word Verifier ▲"
+                  : lang === "cs"
+                  ? "Otevřít ověřovač slovníku ▼"
+                  : "Open Word Verifier ▼"}
+              </span>
+            </button>
+            {mobileVerifierOpen && (
+              <div className="mt-2 animate-fadeIn">
+                <WordVerifier
+                  currentLadderWord={currentLadderWord}
+                  ladderHistory={path}
+                  onPlayWord={playWord}
+                  lang={lang}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right / Desktop Sidebar: Word Verifier & Objective Card */}
+        <div className="hidden lg:flex flex-col gap-3 w-72 lg:w-80 shrink-0 sticky top-16">
+          {/* Mission Objective Card */}
+          <div className="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-4 shadow text-xs space-y-2">
+            <div className="flex items-center justify-between text-zinc-400">
+              <span className="font-semibold uppercase tracking-wider text-[10px]">
+                {lang === "cs" ? "Cíl mise" : "Mission Goal"}
+              </span>
+              <span className="font-mono text-amber-400 font-bold">Par {puzzle.par}</span>
+            </div>
+            <div className="text-zinc-200 font-medium">
+              {lang === "cs"
+                ? `Proměň '${puzzle.startWord}' na '${puzzle.targetWord}' změnou 1 písmene v každém kroku.`
+                : `Transform '${puzzle.startWord}' into '${puzzle.targetWord}' one letter at a time.`}
+            </div>
+          </div>
+
+          {/* Word Verifier Widget */}
+          <WordVerifier
+            currentLadderWord={currentLadderWord}
+            ladderHistory={path}
+            onPlayWord={playWord}
+            lang={lang}
+          />
+        </div>
+      </main>
+
+      {/* Control Buttons (Undo / Hint / Restart) & Virtual Keyboard */}
+      <footer className="w-full bg-zinc-950/80 border-t border-zinc-800/80 pt-1.5 pb-2">
+        {/* QoL Helper Buttons */}
+        <div className="w-full max-w-md mx-auto px-4 flex items-center justify-between mb-1.5 text-xs text-zinc-400">
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={isWon || path.length <= 1}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+            title="Undo last move"
+          >
+            <Undo2 size={14} />
+            <span>{lang === "cs" ? "Zpět" : "Undo"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleHint}
+            disabled={isWon}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-800/60 text-amber-300 transition cursor-pointer"
+            title="Get optimal next hint"
+          >
+            <Lightbulb size={14} className="text-amber-400" />
+            <span>{lang === "cs" ? "Nápověda" : "Hint"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRestart}
+            disabled={isWon || path.length <= 1}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-800 text-zinc-300 transition cursor-pointer"
+            title="Restart puzzle"
+          >
+            <RotateCcw size={14} />
+            <span>{lang === "cs" ? "Restart" : "Reset"}</span>
+          </button>
+        </div>
+
+        {/* On-screen Keyboard */}
+        <VirtualKeyboard
+          onChar={handleChar}
+          onEnter={handleEnter}
+          onDelete={handleDelete}
+          targetWord={puzzle.targetWord}
+        />
+      </footer>
+
+      {/* Modals */}
+      <HowToPlayModal
+        isOpen={showHowToPlay}
+        onClose={() => setShowHowToPlay(false)}
+        lang={lang}
+      />
+
+      <StatsModal
+        isOpen={showStats}
+        onClose={() => setShowStats(false)}
+        stats={stats}
+        currentPuzzle={puzzle}
+        currentPath={path}
+        currentMode={mode}
+        isWon={isWon}
+        lang={lang}
+      />
+
+      <WinModal
+        isOpen={showWin}
+        onClose={() => setShowWin(false)}
+        puzzle={puzzle}
+        userPath={path}
+        mode={mode}
+        onNextPuzzle={startUnlimited}
+        onSwitchToUnlimited={startUnlimited}
+        lang={lang}
+      />
+
+      <CustomGameModal
+        isOpen={showCustom}
+        onClose={() => setShowCustom(false)}
+        onStartCustom={startCustom}
+        lang={lang}
+      />
+    </div>
+  );
+};
