@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Search, CheckCircle2, XCircle, Sparkles, ArrowRight, CornerDownLeft, ChevronDown, ChevronUp } from "lucide-react";
-import { VALID_WORDS_SET } from "../logic/wordList";
+import { getValidWordsSet } from "../logic/wordList";
 import { isOneLetterDiff, getDiffIndex, getNeighbors } from "../logic/solver";
 
 interface WordVerifierProps {
@@ -20,6 +20,7 @@ export const WordVerifier: React.FC<WordVerifierProps> = ({
   const [showNeighbors, setShowNeighbors] = useState(false);
 
   const cleanQuery = query.toUpperCase().trim();
+  const wordSet = useMemo(() => getValidWordsSet(lang), [lang]);
 
   // Verification analysis
   const analysis = useMemo(() => {
@@ -34,13 +35,13 @@ export const WordVerifier: React.FC<WordVerifierProps> = ({
       };
     }
 
-    const inDict = VALID_WORDS_SET.has(cleanQuery);
+    const inDict = wordSet.has(cleanQuery);
     if (!inDict) {
       return {
         status: "invalid",
         inDict: false,
         canPlay: false,
-        message: lang === "cs" ? `'${cleanQuery}' není v anglickém slovníku` : `'${cleanQuery}' is not in dictionary`,
+        message: lang === "cs" ? `'${cleanQuery}' není v českém slovníku` : `'${cleanQuery}' is not in dictionary`,
       };
     }
 
@@ -68,12 +69,12 @@ export const WordVerifier: React.FC<WordVerifierProps> = ({
           ? `Platné slovo, ale neliší se právě o 1 písmeno od '${currentLadderWord}'`
           : `Valid word, but doesn't differ by 1 letter from '${currentLadderWord}'`,
     };
-  }, [cleanQuery, currentLadderWord, lang]);
+  }, [cleanQuery, currentLadderWord, lang, wordSet]);
 
   // Valid 1-letter neighbors for current word
   const availableNeighbors = useMemo(() => {
-    return getNeighbors(currentLadderWord, VALID_WORDS_SET);
-  }, [currentLadderWord]);
+    return getNeighbors(currentLadderWord, wordSet);
+  }, [currentLadderWord, wordSet]);
 
   const handlePlay = (wordToPlay: string) => {
     if (onPlayWord) {

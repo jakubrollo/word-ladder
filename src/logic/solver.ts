@@ -1,5 +1,7 @@
 import { VALID_WORDS_SET } from "./wordList";
 
+export const UNIFIED_ALPHABET = "AÁBCČDĎEÉĚFGHIÍJKLMNŇOÓPQRŘSŠTŤUÚŮVWXYÝZŽ";
+
 /**
  * Checks if two words have the same length and differ by exactly one letter.
  */
@@ -34,15 +36,19 @@ export function getDiffIndex(w1: string, w2: string): number {
 
 /**
  * Returns all valid 4-letter words in the dictionary that differ from `word` by 1 letter.
+ * Supports both English and Czech letters (including diacritics).
  */
-export function getNeighbors(word: string, wordSet: ReadonlySet<string> = VALID_WORDS_SET): string[] {
+export function getNeighbors(
+  word: string,
+  wordSet: ReadonlySet<string> = VALID_WORDS_SET,
+  alphabet: string = UNIFIED_ALPHABET
+): string[] {
   const neighbors: string[] = [];
   const upper = word.toUpperCase();
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   for (let i = 0; i < 4; i++) {
     const origChar = upper[i];
-    for (let c = 0; c < 26; c++) {
+    for (let c = 0; c < alphabet.length; c++) {
       const ch = alphabet[c];
       if (ch === origChar) continue;
       const candidate = upper.slice(0, i) + ch + upper.slice(i + 1);
@@ -208,4 +214,3 @@ export function getPathDistanceInfo(
     };
   });
 }
-

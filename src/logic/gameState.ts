@@ -1,4 +1,4 @@
-import { COMMON_START_WORDS, VALID_WORDS_SET } from "./wordList";
+import { getCommonStartWords, getValidWordsSet } from "./wordList";
 import { findShortestPath, getNeighbors } from "./solver";
 
 export type GameMode = "daily" | "unlimited" | "custom";
@@ -24,7 +24,6 @@ export interface PuzzleInfo {
 
 const LAUNCH_EPOCH = new Date(2025, 0, 1).getTime(); // Jan 1, 2025
 const STATS_STORAGE_KEY = "word_ladder_game_stats_v2";
-const commonWordSet = new Set(COMMON_START_WORDS);
 
 /**
  * Returns formatted local date YYYY-MM-DD.
@@ -55,8 +54,11 @@ function seededRandom(seed: number): () => number {
 export function findReachableTargets(
   startWord: string,
   minDist: number = 3,
-  maxDist: number = 6
+  maxDist: number = 6,
+  lang: "en" | "cs" = "en"
 ): Array<{ word: string; dist: number; path: string[] }> {
+  const wordSet = getValidWordsSet(lang);
+  const commonSet = new Set(getCommonStartWords(lang));
   const start = startWord.toUpperCase();
   const queue: Array<{ word: string; path: string[] }> = [{ word: start, path: [start] }];
   const visited = new Set<string>([start]);
@@ -68,11 +70,11 @@ export function findReachableTargets(
 
     if (currentDist > maxDist) break;
 
-    if (currentDist >= minDist && commonWordSet.has(current.word) && current.word !== start) {
+    if (currentDist >= minDist && commonSet.has(current.word) && current.word !== start) {
       reachable.push({ word: current.word, dist: currentDist, path: current.path });
     }
 
-    const nbrs = getNeighbors(current.word, VALID_WORDS_SET);
+    const nbrs = getNeighbors(current.word, wordSet);
     for (const nbr of nbrs) {
       if (!visited.has(nbr)) {
         visited.add(nbr);
@@ -88,22 +90,24 @@ export function findReachableTargets(
  * Generates the daily challenge puzzle for today (or a specific date).
  * Changes both start AND target word deterministically every day!
  */
-export function getDailyPuzzle(dateStr: string = getTodayDateString()): PuzzleInfo {
+export function getDailyPuzzle(lang: "en" | "cs" = "en", dateStr: string = getTodayDateString()): PuzzleInfo {
   const today = new Date(dateStr + "T00:00:00");
   const diffTime = today.getTime() - LAUNCH_EPOCH;
   const dayIndex = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
   const puzzleNumber = dayIndex + 1;
 
-  const rng = seededRandom(dayIndex * 9973 + 4391);
+  const rng = seededRandom(dayIndex * 9973 + (lang === "cs" ? 8819 : 4391));
+  const commonWords = getCommonStartWords(lang);
+  const wordSet = getValidWordsSet(lang);
 
   // Pick start word deterministically
-  const startIndex = Math.floor(rng() * COMMON_START_WORDS.length);
-  let startWord = COMMON_START_WORDS[startIndex] || "BOAT";
+  const startIndex = Math.floor(rng() * commonWords.length);
+  let startWord = commonWords[startIndex] || (lang === "cs" ? "VODA" : "BOAT");
 
   // Find reachable targets at distance 3 to 5
-  const targets = findReachableTargets(startWord, 3, 5);
-  let chosenTarget = "COOP";
-  let optimalPath = [startWord, "COAT", "CHAT", "CHOP", "COOP"];
+  const targets = findReachableTargets(startWord, 3, 5, lang);
+  let chosenTarget = lang === "cs" ? "HORA" : "COOP";
+  let optimalPath = [startWord, chosenTarget];
   let par = 4;
 
   if (targets.length > 0) {
@@ -114,15 +118,17 @@ export function getDailyPuzzle(dateStr: string = getTodayDateString()): PuzzleIn
     par = chosen.dist;
   } else {
     // Fallback known pair
-    const fallbackPath = findShortestPath("BOAT", "COOP") || ["BOAT", "COOP"];
-    startWord = "BOAT";
-    chosenTarget = "COOP";
+    const fallbackStart = lang === "cs" ? "MOST" : "BOAT";
+    const fallbackTarget = lang === "cs" ? "KOZA" : "COOP";
+    const fallbackPath = findShortestPath(fallbackStart, fallbackTarget, wordSet) || [fallbackStart, fallbackTarget];
+    startWord = fallbackStart;
+    chosenTarget = fallbackTarget;
     optimalPath = fallbackPath;
     par = fallbackPath.length - 1;
   }
 
   return {
-    id: `daily-${dateStr}`,
+    id: `daily-${lang}-${dateStr}`,
     puzzleNumber,
     startWord,
     targetWord: chosenTarget,
@@ -134,16 +140,19 @@ export function getDailyPuzzle(dateStr: string = getTodayDateString()): PuzzleIn
 /**
  * Generates a fresh random puzzle with dynamic start and target words for Unlimited mode.
  */
-export function getRandomPuzzle(minPar: number = 3, maxPar: number = 5): PuzzleInfo {
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const randIndex = Math.floor(Math.random() * COMMON_START_WORDS.length);
-    const startWord = COMMON_START_WORDS[randIndex];
+export function getRandomPuzzle(lang: "en" | "cs" = "en", minPar: number = 3, maxPar: number = 5): PuzzleInfo {
+  const commonWords = getCommonStartWords(lang);
+  const wordSet = getValidWordsSet(lang);
 
-    const targets = findReachableTargets(startWord, minPar, maxPar);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const randIndex = Math.floor(Math.random() * commonWords.length);
+    const startWord = commonWords[randIndex];
+
+    const targets = findReachableTargets(startWord, minPar, maxPar, lang);
     if (targets.length > 0) {
       const chosen = targets[Math.floor(Math.random() * targets.length)];
       return {
-        id: `unlimited-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: `unlimited-${lang}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         puzzleNumber: Math.floor(Math.random() * 9000) + 1000,
         startWord,
         targetWord: chosen.word,
@@ -154,12 +163,14 @@ export function getRandomPuzzle(minPar: number = 3, maxPar: number = 5): PuzzleI
   }
 
   // Fallback
-  const path = findShortestPath("BOAT", "COOP") || ["BOAT", "COOP"];
+  const fallbackStart = lang === "cs" ? "MOST" : "BOAT";
+  const fallbackTarget = lang === "cs" ? "KOZA" : "COOP";
+  const path = findShortestPath(fallbackStart, fallbackTarget, wordSet) || [fallbackStart, fallbackTarget];
   return {
-    id: `unlimited-${Date.now()}`,
+    id: `unlimited-${lang}-${Date.now()}`,
     puzzleNumber: 999,
-    startWord: "BOAT",
-    targetWord: "COOP",
+    startWord: fallbackStart,
+    targetWord: fallbackTarget,
     par: path.length - 1,
     optimalPath: path,
   };
@@ -168,16 +179,17 @@ export function getRandomPuzzle(minPar: number = 3, maxPar: number = 5): PuzzleI
 /**
  * Creates a custom puzzle from user input.
  */
-export function getCustomPuzzle(startWord: string, targetWord: string): PuzzleInfo | null {
+export function getCustomPuzzle(startWord: string, targetWord: string, lang: "en" | "cs" = "en"): PuzzleInfo | null {
   const s = startWord.toUpperCase().trim();
   const t = targetWord.toUpperCase().trim();
   if (s.length !== 4 || t.length !== 4) return null;
 
-  const path = findShortestPath(s, t);
+  const wordSet = getValidWordsSet(lang);
+  const path = findShortestPath(s, t, wordSet);
   if (!path) return null;
 
   return {
-    id: `custom-${s}-${t}`,
+    id: `custom-${lang}-${s}-${t}`,
     puzzleNumber: 0,
     startWord: s,
     targetWord: t,
@@ -307,7 +319,7 @@ export function generateShareText(
     ladderRows.push(rowEmojis.join(""));
   }
 
-  return `${title}\n${route}\n${scoreLine}\n${ladderRows.join("\n")}\n\nhttps://jakubrollo.github.io/poople.html`;
+  return `${title}\n${route}\n${scoreLine}\n${ladderRows.join("\n")}\n\nhttps://jakubrollo.github.io/word-ladder`;
 }
 
 // -------------------------------------------------------------

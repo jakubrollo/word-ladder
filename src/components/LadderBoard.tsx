@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { CornerDownLeft, Target, ArrowRight, ArrowDown, ArrowUp, CornerDownRight } from "lucide-react";
-import { VALID_WORDS_SET } from "../logic/wordList";
+import { getValidWordsSet } from "../logic/wordList";
 import { calculatePar, isOneLetterDiff, getDiffIndex } from "../logic/solver";
 
 interface LadderBoardProps {
@@ -48,6 +48,8 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
   const boardRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const wordSet = useMemo(() => getValidWordsSet(lang), [lang]);
+
   // Compute 2D Grid Layout where:
   // - row = distance to target (Y-axis)
   // - col = branch column (X-axis)
@@ -61,7 +63,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 
     for (let i = 0; i < path.length; i++) {
       const word = path[i];
-      const dist = calculatePar(word, targetWord);
+      const dist = calculatePar(word, targetWord, wordSet);
       currentMaxRow = Math.max(currentMaxRow, dist);
 
       let node = nodeMap.get(word);
@@ -93,7 +95,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
 
         const prevWord = i > 0 ? path[i - 1] : word;
         const changedIndex = i > 0 ? getDiffIndex(prevWord, word) : -1;
-        const prevDist = i > 0 ? calculatePar(prevWord, targetWord) : dist;
+        const prevDist = i > 0 ? calculatePar(prevWord, targetWord, wordSet) : dist;
         const delta = dist - prevDist;
 
         node = {
@@ -115,7 +117,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
         node.stepIndices.push(i);
         node.latestStepIndex = i;
         const prevWord = path[i - 1];
-        const prevDist = calculatePar(prevWord, targetWord);
+        const prevDist = calculatePar(prevWord, targetWord, wordSet);
         node.delta = dist - prevDist;
         node.changedIndex = getDiffIndex(prevWord, word);
       }
@@ -178,17 +180,17 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       cellMap: map,
       connections: conns,
     };
-  }, [isWon, par, path, targetWord]);
+  }, [isWon, par, path, targetWord, wordSet]);
 
   // Current distance to goal
-  const currentDist = activeNode ? activeNode.row : calculatePar(path[path.length - 1], targetWord);
+  const currentDist = activeNode ? activeNode.row : calculatePar(path[path.length - 1], targetWord, wordSet);
 
   // Real-time preview of user's active 4-letter input
   const inputPreview = useMemo(() => {
     const clean = currentInput.toUpperCase().trim();
     if (clean.length !== 4) return null;
 
-    if (!VALID_WORDS_SET.has(clean)) {
+    if (!wordSet.has(clean)) {
       return { status: "invalid", text: lang === "cs" ? "Není ve slovníku" : "Not in dictionary" };
     }
 
@@ -197,7 +199,7 @@ export const LadderBoard: React.FC<LadderBoardProps> = ({
       return { status: "not_1_diff", text: lang === "cs" ? "Změň 1 písmeno" : "Must change 1 letter" };
     }
 
-    const nextDist = calculatePar(clean, targetWord);
+    const nextDist = calculatePar(clean, targetWord, wordSet);
     if (nextDist < currentDist) {
       return {
         status: "closer",

@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { X, Sparkles, AlertCircle, ArrowRight, Play } from "lucide-react";
-import { VALID_WORDS_SET } from "../logic/wordList";
+import { getValidWordsSet } from "../logic/wordList";
 import { findShortestPath } from "../logic/solver";
 import type { PuzzleInfo } from "../logic/gameState";
 
@@ -17,24 +17,35 @@ export const CustomGameModal: React.FC<CustomGameModalProps> = ({
   onStartCustom,
   lang = "en",
 }) => {
-  const [startInput, setStartInput] = useState("GAME");
-  const [targetInput, setTargetInput] = useState("POOP");
+  const [startInput, setStartInput] = useState(lang === "cs" ? "MOST" : "GAME");
+  const [targetInput, setTargetInput] = useState(lang === "cs" ? "KOZA" : "POOP");
+
+  useEffect(() => {
+    if (lang === "cs") {
+      setStartInput("MOST");
+      setTargetInput("KOZA");
+    } else {
+      setStartInput("GAME");
+      setTargetInput("POOP");
+    }
+  }, [lang]);
 
   const s = startInput.toUpperCase().trim();
   const t = targetInput.toUpperCase().trim();
+  const wordSet = useMemo(() => getValidWordsSet(lang), [lang]);
 
   const validation = useMemo(() => {
     if (s.length !== 4) return { ok: false, msg: lang === "cs" ? "Startovní slovo musí mít 4 písmena." : "Start word must be 4 letters." };
     if (t.length !== 4) return { ok: false, msg: lang === "cs" ? "Cílové slovo musí mít 4 písmena." : "Target word must be 4 letters." };
-    if (!VALID_WORDS_SET.has(s)) return { ok: false, msg: lang === "cs" ? `'${s}' není v anglickém slovníku.` : `'${s}' is not in dictionary.` };
-    if (!VALID_WORDS_SET.has(t)) return { ok: false, msg: lang === "cs" ? `'${t}' není v anglickém slovníku.` : `'${t}' is not in dictionary.` };
+    if (!wordSet.has(s)) return { ok: false, msg: lang === "cs" ? `'${s}' není v českém slovníku.` : `'${s}' is not in dictionary.` };
+    if (!wordSet.has(t)) return { ok: false, msg: lang === "cs" ? `'${t}' není v českém slovníku.` : `'${t}' is not in dictionary.` };
     if (s === t) return { ok: false, msg: lang === "cs" ? "Start a cíl nemohou být stejná slova." : "Start and target cannot be the same." };
 
-    const path = findShortestPath(s, t);
+    const path = findShortestPath(s, t, wordSet);
     if (!path) return { ok: false, msg: lang === "cs" ? `Mezi '${s}' a '${t}' neexistuje platná cesta.` : `No path exists between '${s}' and '${t}'.` };
 
     return { ok: true, par: path.length - 1, path };
-  }, [s, t, lang]);
+  }, [s, t, lang, wordSet]);
 
   if (!isOpen) return null;
 

@@ -23,7 +23,7 @@ import { HowToPlayModal } from "./components/HowToPlayModal";
 import { StatsModal } from "./components/StatsModal";
 import { WinModal } from "./components/WinModal";
 import { CustomGameModal } from "./components/CustomGameModal";
-import { VALID_WORDS_SET } from "./logic/wordList";
+import { getValidWordsSet } from "./logic/wordList";
 import { validateGuess, getNextHint, calculatePar } from "./logic/solver";
 import type { GameMode, PuzzleInfo, GameStats } from "./logic/gameState";
 import {
@@ -106,13 +106,13 @@ function launchConfetti(canvas: HTMLCanvasElement | null) {
 export default function App() {
   const [lang, setLang] = useState<"en" | "cs">(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("portfolio-language") as "en" | "cs") || "en";
+      return (localStorage.getItem("portfolio-language") as "en" | "cs") || "cs";
     }
-    return "en";
+    return "cs";
   });
 
   const [mode, setMode] = useState<GameMode>("daily");
-  const [puzzle, setPuzzle] = useState<PuzzleInfo>(() => getDailyPuzzle());
+  const [puzzle, setPuzzle] = useState<PuzzleInfo>(() => getDailyPuzzle(lang));
   const [path, setPath] = useState<string[]>([puzzle.startWord]);
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isWon, setIsWon] = useState<boolean>(false);
@@ -137,15 +137,15 @@ export default function App() {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  // Load / initialize daily game state
+  // Load / initialize game state on mode or language change
   useEffect(() => {
     if (mode === "daily") {
-      const todayDaily = getDailyPuzzle();
+      const todayDaily = getDailyPuzzle(lang);
       setPuzzle(todayDaily);
 
       // Check if already won today in stats
-      const todayKey = getTodayDateString();
-      const savedDaily = stats.dailyCompleted[todayKey];
+      const todayKey = `${lang}-${getTodayDateString()}`;
+      const savedDaily = stats.dailyCompleted[todayKey] || stats.dailyCompleted[getTodayDateString()];
       if (savedDaily && savedDaily.won && savedDaily.startWord === todayDaily.startWord) {
         setPath(savedDaily.path);
         setIsWon(true);
@@ -155,8 +155,15 @@ export default function App() {
       }
       setCurrentInput("");
       setErrorMessage(null);
+    } else if (mode === "unlimited") {
+      const nextPuz = getRandomPuzzle(lang, 3, 5);
+      setPuzzle(nextPuz);
+      setPath([nextPuz.startWord]);
+      setCurrentInput("");
+      setIsWon(false);
+      setErrorMessage(null);
     }
-  }, [mode, stats.dailyCompleted]);
+  }, [lang, mode, stats.dailyCompleted]);
 
   // Handle sound toggle
   const toggleSound = () => {
@@ -167,7 +174,7 @@ export default function App() {
 
   // Switch to Unlimited mode
   const startUnlimited = useCallback(() => {
-    const nextPuz = getRandomPuzzle(3, 5);
+    const nextPuz = getRandomPuzzle(lang, 3, 5);
     setMode("unlimited");
     setPuzzle(nextPuz);
     setPath([nextPuz.startWord]);
@@ -175,16 +182,16 @@ export default function App() {
     setIsWon(false);
     setErrorMessage(null);
     setShowWin(false);
-  }, []);
+  }, [lang]);
 
   // Switch to Daily mode
   const startDaily = useCallback(() => {
-    const daily = getDailyPuzzle();
+    const daily = getDailyPuzzle(lang);
     setMode("daily");
     setPuzzle(daily);
 
-    const todayKey = getTodayDateString();
-    const saved = stats.dailyCompleted[todayKey];
+    const todayKey = `${lang}-${getTodayDateString()}`;
+    const saved = stats.dailyCompleted[todayKey] || stats.dailyCompleted[getTodayDateString()];
     if (saved && saved.won && saved.startWord === daily.startWord) {
       setPath(saved.path);
       setIsWon(true);
@@ -195,7 +202,7 @@ export default function App() {
     setCurrentInput("");
     setErrorMessage(null);
     setShowWin(false);
-  }, [stats.dailyCompleted]);
+  }, [lang, stats.dailyCompleted]);
 
   // Switch to Custom Puzzle
   const startCustom = useCallback((customPuz: PuzzleInfo) => {
@@ -228,12 +235,13 @@ export default function App() {
         return;
       }
 
+      const wordSet = getValidWordsSet(lang);
       const lastWord = path[path.length - 1];
-      const validation = validateGuess(upper, lastWord, path, VALID_WORDS_SET);
+      const validation = validateGuess(upper, lastWord, path, wordSet);
 
       if (!validation.valid) {
         if (validation.reason === "NOT_IN_DICTIONARY") {
-          triggerError(lang === "cs" ? `'${upper}' není v anglickém slovníku!` : `'${upper}' is not in dictionary!`);
+          triggerError(lang === "cs" ? `'${upper}' není v českém slovníku!` : `'${upper}' is not in dictionary!`);
         } else if (validation.reason === "NOT_ONE_LETTER_DIFF") {
           triggerError(lang === "cs" ? `Musíš změnit přesně 1 písmeno od '${lastWord}'!` : `Must change exactly 1 letter from '${lastWord}'!`);
         } else {
@@ -243,8 +251,8 @@ export default function App() {
       }
 
       // Valid step! Compute direction delta
-      const prevDist = calculatePar(lastWord, puzzle.targetWord);
-      const newDist = calculatePar(upper, puzzle.targetWord);
+      const prevDist = calculatePar(lastWord, puzzle.targetWord, wordSet);
+      const newDist = calculatePar(upper, puzzle.targetWord, wordSet);
       const delta = newDist - prevDist;
       sounds.playStep(delta);
 
@@ -315,7 +323,8 @@ export default function App() {
   const handleHint = useCallback(() => {
     if (isWon) return;
     const currentWord = path[path.length - 1];
-    const hint = getNextHint(currentWord, puzzle.targetWord, VALID_WORDS_SET);
+    const wordSet = getValidWordsSet(lang);
+    const hint = getNextHint(currentWord, puzzle.targetWord, wordSet);
     if (!hint) {
       triggerError(lang === "cs" ? "Z této pozice nelze dosáhnout cíle, zkus vrátit krok (Undo)!" : "No path from here, try Undo!");
       return;
@@ -348,7 +357,7 @@ export default function App() {
       } else if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleUndo();
-      } else if (/^[a-zA-Z]$/.test(e.key)) {
+      } else if (/^[a-zA-ZáčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]$/u.test(e.key)) {
         e.preventDefault();
         handleChar(e.key);
       }
@@ -647,6 +656,7 @@ export default function App() {
             onEnter={handleEnter}
             onDelete={handleDelete}
             targetWord={puzzle.targetWord}
+            lang={lang}
           />
         )}
       </footer>
