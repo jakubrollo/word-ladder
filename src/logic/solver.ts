@@ -134,6 +134,21 @@ export function getNextHint(
   };
 }
 
+/**
+ * Returns all valid 1-letter neighbors of currentWord that decrease the distance to target (delta === -1).
+ */
+export function getAllOptimalNextMoves(
+  currentWord: string,
+  targetWord: string,
+  wordSet: ReadonlySet<string> = VALID_WORDS_SET
+): string[] {
+  const currentDist = calculatePar(currentWord, targetWord, wordSet);
+  if (currentDist <= 0) return [];
+
+  const neighbors = getNeighbors(currentWord, wordSet);
+  return neighbors.filter((nbr) => calculatePar(nbr, targetWord, wordSet) === currentDist - 1);
+}
+
 export interface ValidationResult {
   valid: boolean;
   reason?: "NOT_4_LETTERS" | "NOT_IN_DICTIONARY" | "NOT_ONE_LETTER_DIFF" | "ALREADY_USED";

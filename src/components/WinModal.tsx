@@ -146,7 +146,7 @@ export const WinModal: React.FC<WinModalProps> = ({
           {/* Optimal Par Path */}
           <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3">
             <div className="font-semibold text-zinc-400 mb-2 flex items-center justify-between">
-              <span>{lang === "cs" ? "Optimální cesta (AI Solver):" : "Optimal Path (AI Solver):"}</span>
+              <span>{lang === "cs" ? "Příklad optimální cesty (AI Solver):" : "Sample Optimal Path (AI Solver):"}</span>
               <span className="text-emerald-400 font-mono font-bold">{puzzle.par} steps</span>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 font-mono">
